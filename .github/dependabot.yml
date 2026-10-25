@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # Keeps the SHA pins of third-party actions current, with their version comments.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

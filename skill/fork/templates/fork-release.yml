@@ -1,0 +1,20 @@
+name: Fork release
+
+on:
+  push:                                                         # tip:remove
+    branches: [{{trunk}}]                                       # tip:remove
+    paths-ignore: ['.github/**', '**/*.md']                     # tip:remove
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (default: computed from upstream)'
+        type: string
+        default: ''
+
+jobs:
+  release:
+    uses: {{kit_repo}}/.github/workflows/release.yml@v1
+    permissions:
+      contents: write
+    with:
+      version: ${{ inputs.version || '' }}

@@ -1,0 +1,22 @@
+name: Fork sync
+
+on:
+  schedule:
+    - cron: '{{cron}}'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    uses: {{kit_repo}}/.github/workflows/sync.yml@v1
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    secrets: inherit
+
+  release:                                                      # tip:remove
+    needs: sync                                                 # tip:remove
+    if: needs.sync.outputs.merged == 'true'                     # tip:remove
+    uses: {{kit_repo}}/.github/workflows/release.yml@v1         # tip:remove
+    permissions:                                                # tip:remove
+      contents: write                                           # tip:remove

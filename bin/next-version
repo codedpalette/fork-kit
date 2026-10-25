@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# Print the next fork release version for an upstream base.
+#
+#   next-version <base> <suffix>     e.g. next-version 8.6.0 patched
+#
+# Prints <base>-<suffix>.<N>, where N is one more than the highest N already
+# tagged for that exact base, or 1. Using the highest N rather than a count
+# keeps versions unique even after a release was deleted.
+
+set -euo pipefail
+
+[ $# -eq 2 ] || { echo "usage: ${0##*/} <base> <suffix>" >&2; exit 2; }
+base="$1" suffix="$2"
+prefix="$base-$suffix."
+
+highest="$(git tag -l "$prefix*" |
+    sed "s|^$(printf '%s' "$prefix" | sed 's/[.[\*^$]/\\&/g')||" |
+    grep -E '^[0-9]+$' |
+    sort -n | tail -n 1 || true)"
+
+printf '%s%d\n' "$prefix" "$(( ${highest:-0} + 1 ))"

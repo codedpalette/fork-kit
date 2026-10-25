@@ -1,0 +1,21 @@
+# Fork configuration, read by the fork skill and the fork-kit workflows.
+# Contract: https://github.com/{{kit_repo}}#forkyml
+schema: 1
+kit: v1
+kit-repo: {{kit_repo}}
+upstream: {{upstream}}            # owner/name
+mirror: {{mirror}}                # upstream's default branch, mirrored as is
+trunk: {{trunk}}                  # our default branch: upstream plus our patches
+node: {{node}}                    # setup-node version for verify and build
+sync:
+  source: {{source}}              # release | tag | npm | tip
+  npm-package: '{{npm_package}}'  # only for source: npm
+  verify: {{verify}}
+release:
+  suffix: {{suffix}}              # version = <upstream base>-<suffix>.<N>
+  build: {{build}}
+  version-file: {{version_file}}  # only read for source: tip
+  stamp:                          # file -> jq filter, $version is defined
+{{stamp}}
+  assets: [{{assets}}]            # attached to the GitHub Release
+  commit: [{{commit}}]            # force-added into a tag-only commit, for git-URL installs
