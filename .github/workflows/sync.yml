@@ -233,6 +233,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           TRUNK: ${{ steps.config.outputs.trunk }}
+          UPSTREAM: ${{ steps.config.outputs.upstream }}
           MIRROR: ${{ steps.config.outputs.mirror }}
           SOURCE: ${{ steps.config.outputs.source }}
           VERIFY: ${{ steps.config.outputs.verify }}
@@ -270,8 +271,24 @@ jobs:
             release_note="GitHub then marks this PR as merged, and the fork's release workflow publishes a new release."
           fi
 
+          if [ "$VERIFY" = true ]; then
+            verify_step="4. This fork has no verify command. Build or test the result by hand before you push."
+          else
+            verify_step="4. Run the fork's verify command:
+
+             \`\`\`bash
+             $VERIFY
+             \`\`\`"
+          fi
+
           cat >body.md <<BODY
-          The scheduled sync could not merge upstream \`$REF\` into \`$TRUNK\`. Syncs and releases from upstream stay paused until this lands. The mirror branch \`$MIRROR\` keeps following upstream.
+          The scheduled sync could not merge [\`$REF\`](https://github.com/$UPSTREAM/tree/$REF) of upstream [$UPSTREAM](https://github.com/$UPSTREAM) into this fork's trunk \`$TRUNK\`. Syncs and releases from upstream stay paused until this lands. The mirror branch \`$MIRROR\` keeps following upstream's \`$MIRROR\`.
+
+          | Branch | In this fork | Role |
+          |---|---|---|
+          | \`$branch\` | upstream \`$REF\`, unchanged | what to merge |
+          | \`$TRUNK\` | upstream plus this fork's patches | where the merge goes |
+          | \`$MIRROR\` | a copy of upstream's \`$MIRROR\` | do not touch |
 
           Conflicting files:
 
@@ -279,7 +296,7 @@ jobs:
 
           ## Resolve it
 
-          Run these steps in a clone of this fork. Do not use the merge button on this PR: a squash or rebase merge drops upstream's commits from the trunk's history, and the next sync conflicts again.
+          Run these steps in a clone of this fork. If you have none: \`gh repo clone $GH_REPO && cd ${GH_REPO#*/}\`. Do not use the merge button on this PR: a squash or rebase merge drops upstream's commits from the trunk's history, and the next sync conflicts again.
 
           1. Update the trunk:
 
@@ -302,11 +319,7 @@ jobs:
              git commit --no-edit
              \`\`\`
 
-          4. Run the fork's verify command:
-
-             \`\`\`bash
-             $VERIFY
-             \`\`\`
+          $verify_step
 
           5. Push the trunk. $release_note
 

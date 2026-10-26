@@ -88,6 +88,8 @@ conflict_parks_pr() {
     check "body lists the conflicting file" grep -qF -- '- `lib.js`' <<<"$body"
     check "body has the merge command" grep -qF -- 'git merge --no-ff -m "Merge upstream v0.3.0" origin/sync/v0.3.0' <<<"$body"
     check "body has the verify command" grep -qF -- 'npm test' <<<"$body"
+    check "body names upstream" grep -qF -- "[$UPSTREAM](https://github.com/$UPSTREAM)" <<<"$body"
+    check "body has the clone command" grep -qF -- "gh repo clone $SANDBOX" <<<"$body"
     check "body has the push command" grep -qF -- 'git push origin patched' <<<"$body"
     dispatch "$SANDBOX" fork-sync.yml
     check "second run is green" run_ok
