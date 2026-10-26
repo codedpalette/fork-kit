@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# Read a fork.yml and print its values as name=value lines, ready to append to
+# $GITHUB_OUTPUT. Lists and maps are printed as compact JSON. Missing optional
+# keys get their defaults, and invalid files fail with a message.
+#
+#   fork-config <path to fork.yml>
+
+set -euo pipefail
+
+SCHEMA=1
+
+[ $# -eq 1 ] || { echo "usage: ${0##*/} <fork.yml>" >&2; exit 2; }
+file="$1"
+[ -f "$file" ] || { echo "error: $file not found" >&2; exit 1; }
+
+get() { yq -r "$1 // \"$2\"" "$file"; }
+json() { yq -o=json -I=0 "$1 // $2" "$file"; }
+fail() { echo "error: $file: $*" >&2; exit 1; }
+
+schema="$(get .schema '')"
+[ "$schema" = "$SCHEMA" ] ||
+    fail "schema $schema, but this kit reads schema $SCHEMA. Run the fork skill's upgrade mode."
+
+for key in upstream mirror trunk; do
+    [ -n "$(get ".$key" '')" ] || fail "required key $key is missing"
+done
+
+source="$(get .sync.source '')"
+case "$source" in
+    release | tag | npm | tip) ;;
+    *) fail "sync.source must be release, tag, npm or tip, not '$source'" ;;
+esac
+
+cat <<OUT
+kit=$(get .kit v1)
+kit-repo=$(get '.["kit-repo"]' '')
+upstream=$(get .upstream '')
+mirror=$(get .mirror '')
+trunk=$(get .trunk '')
+node=$(get .node lts/*)
+source=$source
+npm-package=$(get '.sync["npm-package"]' '')
+verify=$(get .sync.verify true)
+suffix=$(get .release.suffix patched)
+build=$(get .release.build true)
+version-file=$(get '.release["version-file"]' package.json)
+stamp=$(json .release.stamp '{}')
+assets=$(json .release.assets '[]')
+commit=$(json .release.commit '[]')
+OUT

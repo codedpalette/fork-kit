@@ -1,0 +1,254 @@
+name: Sync upstream
+
+# Reusable workflow: merges upstream's latest release (or tip) into the fork's
+# trunk, and keeps the mirror branch equal to upstream. Forks call it from
+# their fork-sync.yml.
+#
+# Two jobs keep SYNC_TOKEN away from upstream's code:
+#
+#   merge  runs upstream's install and tests (the verify command) with no
+#          token at all: read-only GITHUB_TOKEN, and no credentials in git.
+#   push   holds SYNC_TOKEN and runs only git and gh. It repeats the merge,
+#          checks that the result is the tree that `merge` verified, and pushes.
+#
+# A conflict is parked in a sync/<ref> PR assigned to the owner, and the run
+# stays green: the open PR is the reminder, not a daily failure email.
+
+on:
+  workflow_call:
+    secrets:
+      SYNC_TOKEN:
+        required: true
+    outputs:
+      merged:
+        description: '"true" when upstream was merged into the trunk and pushed'
+        value: ${{ jobs.push.outputs.merged }}
+      ref:
+        description: The upstream release tag, or branch for the tip
+        value: ${{ jobs.merge.outputs.ref }}
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      result: ${{ steps.merge.outputs.result }}
+      ref: ${{ steps.find.outputs.ref }}
+      sha: ${{ steps.find.outputs.sha }}
+      tree: ${{ steps.merge.outputs.tree }}
+    steps:
+      - name: Check out the trunk
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fork
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Find the kit
+        id: kit
+        working-directory: fork
+        run: |
+          echo "repo=$(yq -r '.["kit-repo"] // ""' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+          echo "ref=$(yq -r '.kit // "v1"' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.kit.outputs.repo }}
+          ref: ${{ steps.kit.outputs.ref }}
+          path: kit
+          persist-credentials: false
+
+      - name: Read fork.yml
+        id: config
+        working-directory: fork
+        run: |
+          ../kit/bin/fork-config .github/fork.yml >>"$GITHUB_OUTPUT"
+          trunk="$(yq -r .trunk .github/fork.yml)"
+          branch="$(git rev-parse --abbrev-ref HEAD)"
+          if [ "$branch" != "$trunk" ]; then
+            echo "::error::This run checked out $branch, but fork.yml names the trunk $trunk. Make $trunk the default branch."
+            exit 1
+          fi
+
+      - name: Find upstream's release
+        id: find
+        working-directory: fork
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ steps.config.outputs.upstream }}
+          MIRROR: ${{ steps.config.outputs.mirror }}
+          SOURCE: ${{ steps.config.outputs.source }}
+          NPM_PACKAGE: ${{ steps.config.outputs.npm-package }}
+        run: |
+          git remote add upstream "https://github.com/$UPSTREAM.git"
+          git fetch -q --tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+
+          if [ "$SOURCE" = tip ]; then
+            ref="$MIRROR"
+            sha="$(git rev-parse "upstream/$MIRROR")"
+          else
+            rc=0
+            ref="$(../kit/bin/upstream-release "$UPSTREAM" "$SOURCE" "$NPM_PACKAGE")" || rc=$?
+            if [ "$rc" -eq 3 ]; then
+              echo "::error::$UPSTREAM has no $SOURCE release. To follow its branch instead, set sync.source to tip in .github/fork.yml."
+              exit 1
+            fi
+            [ "$rc" -eq 0 ] || exit "$rc"
+            git rev-parse -q --verify "$ref^{commit}" >/dev/null || git fetch -q upstream "$ref"
+            sha="$(git rev-parse "$ref^{commit}")"
+          fi
+
+          echo "ref=$ref" >>"$GITHUB_OUTPUT"
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      - name: Merge
+        id: merge
+        working-directory: fork
+        env:
+          REF: ${{ steps.find.outputs.ref }}
+          SHA: ${{ steps.find.outputs.sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # [skip ci] stops the push from triggering the fork's release
+          # workflow a second time: the caller runs the release itself.
+          if git merge-base --is-ancestor "$SHA" HEAD; then
+            result=current
+            echo "::notice::The trunk already contains upstream $REF."
+          elif git merge -q --no-ff -m "Merge upstream $REF [skip ci]" "$SHA"; then
+            result=merged
+          else
+            git merge --abort
+            result=conflict
+            echo "::warning::Upstream $REF conflicts with the trunk."
+          fi
+
+          echo "result=$result" >>"$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse 'HEAD^{tree}')" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        if: steps.merge.outputs.result == 'merged'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.config.outputs.node }}
+
+      - name: Verify the merge
+        if: steps.merge.outputs.result == 'merged'
+        working-directory: fork
+        env:
+          VERIFY: ${{ steps.config.outputs.verify }}
+        run: bash -euo pipefail -c "$VERIFY"
+
+  push:
+    needs: merge
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    outputs:
+      merged: ${{ steps.push.outputs.merged }}
+    steps:
+      - name: Check out the trunk
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fork
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Find the kit
+        id: kit
+        working-directory: fork
+        run: |
+          echo "repo=$(yq -r '.["kit-repo"] // ""' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+          echo "ref=$(yq -r '.kit // "v1"' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.kit.outputs.repo }}
+          ref: ${{ steps.kit.outputs.ref }}
+          path: kit
+          persist-credentials: false
+
+      - name: Read fork.yml
+        id: config
+        working-directory: fork
+        run: ../kit/bin/fork-config .github/fork.yml >>"$GITHUB_OUTPUT"
+
+      # The mirror holds nothing of ours, so upstream is right by definition.
+      # Commits found only on the mirror are reported, then dropped.
+      - name: Mirror upstream
+        working-directory: fork
+        env:
+          UPSTREAM: ${{ steps.config.outputs.upstream }}
+          MIRROR: ${{ steps.config.outputs.mirror }}
+        run: |
+          git remote add upstream "https://github.com/$UPSTREAM.git"
+          git fetch -q --tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+
+          if git rev-parse -q --verify "refs/remotes/origin/$MIRROR" >/dev/null &&
+             ! git merge-base --is-ancestor "origin/$MIRROR" "upstream/$MIRROR"; then
+            git log --format='%h %s' "upstream/$MIRROR..origin/$MIRROR" |
+              while read -r line; do echo "::warning::Dropped from $MIRROR: $line"; done
+          fi
+          git push -q --force origin "refs/remotes/upstream/$MIRROR:refs/heads/$MIRROR"
+
+      - name: Push the merge
+        id: push
+        if: needs.merge.outputs.result == 'merged'
+        working-directory: fork
+        env:
+          TRUNK: ${{ steps.config.outputs.trunk }}
+          REF: ${{ needs.merge.outputs.ref }}
+          SHA: ${{ needs.merge.outputs.sha }}
+          TREE: ${{ needs.merge.outputs.tree }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rev-parse -q --verify "$SHA^{commit}" >/dev/null || git fetch -q upstream "$SHA"
+          git merge -q --no-ff -m "Merge upstream $REF [skip ci]" "$SHA"
+
+          if [ "$(git rev-parse 'HEAD^{tree}')" != "$TREE" ]; then
+            echo "::error::The merge differs from the one that passed verify. The trunk is unchanged."
+            exit 1
+          fi
+
+          git push -q origin "HEAD:refs/heads/$TRUNK"
+          echo "merged=true" >>"$GITHUB_OUTPUT"
+          echo "::notice::Merged upstream $REF into $TRUNK."
+
+      - name: Park the conflict in a PR
+        if: needs.merge.outputs.result == 'conflict'
+        working-directory: fork
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          TRUNK: ${{ steps.config.outputs.trunk }}
+          REF: ${{ needs.merge.outputs.ref }}
+          SHA: ${{ needs.merge.outputs.sha }}
+        run: |
+          branch="sync/$REF"
+          git push -q --force origin "$SHA:refs/heads/$branch"
+
+          pr="$(gh pr list --base "$TRUNK" --head "$branch" --state open --json number -q '.[0].number // empty')"
+          if [ -z "$pr" ]; then
+            body="$(printf '%s\n\n%s\n%s\n%s\n\n%s\n' \
+              "Merging upstream \`$REF\` into \`$TRUNK\` conflicts. Resolve it locally:" \
+              '```' "git fetch origin && git switch $TRUNK && git merge origin/$branch" '```' \
+              'Syncs and releases from upstream stay paused until this lands.')"
+            gh pr create --base "$TRUNK" --head "$branch" --title "Sync upstream $REF into $TRUNK" \
+              --body "$body" --assignee "$OWNER"
+            echo "::warning::Upstream $REF conflicts with $TRUNK. Opened a sync PR."
+          else
+            created="$(gh pr view "$pr" --json createdAt -q .createdAt)"
+            age=$(( ( $(date +%s) - $(date -d "$created" +%s) ) / 86400 ))
+            echo "::notice::Upstream $REF still conflicts. PR #$pr is $age days old."
+            if [ "$age" -gt 0 ] && [ $(( age % 7 )) -eq 0 ]; then
+              gh pr comment "$pr" --body "Still conflicting after $age days. Syncs and releases stay paused."
+            fi
+          fi
