@@ -4,7 +4,7 @@
 # Usage: test/e2e/secrets.sh        (ONLY="scenario ..." runs a subset)
 #
 # Scenarios are called by name through run_scenarios.
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 
 # shellcheck source=test/e2e/lib.sh
 source "$(dirname "$0")/lib.sh"
