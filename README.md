@@ -147,6 +147,8 @@ The forks call the workflows at `@v1`, a tag that moves.
   upstream dependency therefore has no token to steal.
 - The `actions/checkout` steps in jobs without the token use `persist-credentials: false`.
 - Third-party actions are pinned to full commit SHAs, and Dependabot updates the pins.
+- `test/check-sync-isolation` tests these rules on every push, and the header of `sync.yml`
+  explains them to anyone who edits it.
 - Releases use the job's own `GITHUB_TOKEN`, which expires with the job and reaches only that
   fork.
 
@@ -155,9 +157,9 @@ The forks call the workflows at `@v1`, a tag that moves.
 ```bash
 brew install bats-core shellcheck actionlint yq
 bats test/
-shellcheck bin/* skill/fork/hooks/*.sh
+shellcheck bin/* skill/fork/hooks/*.sh test/check-sync-isolation
 actionlint
 ```
 
-The end-to-end tests run against the sandbox repositories `codedpalette/forker-demo-upstream`
-and `codedpalette/forker-demo`.
+There are no end-to-end tests. After a change to a workflow, push it to `main`, dispatch a
+sync and a release in one real fork whose callers point at `@main`, and only then move `v1`.

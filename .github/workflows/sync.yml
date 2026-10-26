@@ -4,12 +4,31 @@ name: Sync upstream
 # trunk, and keeps the mirror branch equal to upstream. Forks call it from
 # their fork-sync.yml.
 #
-# Two jobs keep SYNC_TOKEN away from upstream's code:
+# ---------------------------------------------------------------------------
+# SECURITY: READ THIS BEFORE YOU EDIT THIS FILE
 #
-#   merge  runs upstream's install and tests (the verify command) with no
-#          token at all: read-only GITHUB_TOKEN, and no credentials in git.
-#   push   holds SYNC_TOKEN and runs only git and gh. It repeats the merge,
-#          checks that the result is the tree that `merge` verified, and pushes.
+# SYNC_TOKEN can write code, workflows and secrets in every repository of the
+# account. This workflow also runs upstream's code (the fork's verify command
+# installs upstream's dependencies and runs its tests) on a schedule, with
+# nobody watching. A compromised upstream package must find no token to steal.
+#
+# The two jobs keep those apart. Keep these invariants:
+#
+#   merge  runs upstream's code. It never references SYNC_TOKEN, has only
+#          read permissions, and every checkout sets
+#          persist-credentials: false. A step that needs GITHUB_TOKEN gets it
+#          in that step's env only, never in the verify step.
+#   push   holds SYNC_TOKEN. It runs only git, gh and the kit's own scripts:
+#          no npm, yarn, node or other interpreter, no eval or sh -c, no
+#          action except actions/checkout, and never the fork's verify or
+#          build command, not even indirectly. It repeats the merge and pushes
+#          only the tree that the merge job verified.
+#   other  Any new job gets no SYNC_TOKEN.
+#
+# test/check-sync-isolation checks these in CI (test/sync-isolation.bats). If
+# a change needs to break an invariant, redesign it instead of loosening the
+# check.
+# ---------------------------------------------------------------------------
 #
 # A conflict is parked in a sync/<ref> PR assigned to the owner, and the run
 # stays green: the open PR is the reminder, not a daily failure email.
@@ -274,11 +293,9 @@ jobs:
           if [ "$VERIFY" = true ]; then
             verify_step="4. This fork has no verify command. Build or test the result by hand before you push."
           else
-            verify_step="4. Run the fork's verify command:
-
-             \`\`\`bash
-             $VERIFY
-             \`\`\`"
+            # printf, so that the command only ever appears as text in the body.
+            # shellcheck disable=SC2016 # the backticks are Markdown
+            verify_step="$(printf '4. Run the fork'"'"'s verify command:\n\n   ```bash\n   %s\n   ```' "$VERIFY")"
           fi
 
           cat >body.md <<BODY

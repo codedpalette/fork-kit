@@ -22,7 +22,7 @@ jobs:
         run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
 
       - name: Lint scripts
-        run: shellcheck -x bin/* skill/fork/hooks/*.sh test/e2e/*.sh
+        run: shellcheck bin/* skill/fork/hooks/*.sh test/check-sync-isolation
 
       - name: Test
         run: bats test/
