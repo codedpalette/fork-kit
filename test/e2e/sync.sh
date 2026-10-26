@@ -82,6 +82,13 @@ conflict_parks_pr() {
     check "trunk unchanged" test "$(trunk_sha)" = "$before"
     check "one sync PR" test "$(sync_prs v0.3.0)" = 1
     check "PR assigned to the owner" test "$(sync_pr_assignee v0.3.0)" = "${SANDBOX%%/*}"
+    local body
+    body="$(gh pr list -R "$SANDBOX" --state open --head sync/v0.3.0 --json body -q '.[0].body')"
+    # shellcheck disable=SC2016 # Markdown backticks
+    check "body lists the conflicting file" grep -qF -- '- `lib.js`' <<<"$body"
+    check "body has the merge command" grep -qF -- 'git merge --no-ff -m "Merge upstream v0.3.0" origin/sync/v0.3.0' <<<"$body"
+    check "body has the verify command" grep -qF -- 'npm test' <<<"$body"
+    check "body has the push command" grep -qF -- 'git push origin patched' <<<"$body"
     dispatch "$SANDBOX" fork-sync.yml
     check "second run is green" run_ok
     check "still one sync PR" test "$(sync_prs v0.3.0)" = 1

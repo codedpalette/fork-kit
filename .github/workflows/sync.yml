@@ -233,6 +233,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           TRUNK: ${{ steps.config.outputs.trunk }}
+          MIRROR: ${{ steps.config.outputs.mirror }}
+          SOURCE: ${{ steps.config.outputs.source }}
+          VERIFY: ${{ steps.config.outputs.verify }}
           REF: ${{ needs.merge.outputs.ref }}
           SHA: ${{ needs.merge.outputs.sha }}
         run: |
@@ -242,19 +245,80 @@ jobs:
           retry git push -q --force origin "$SHA:refs/heads/$branch"
 
           pr="$(gh pr list --base "$TRUNK" --head "$branch" --state open --json number -q '.[0].number // empty')"
-          if [ -z "$pr" ]; then
-            body="$(printf '%s\n\n%s\n%s\n%s\n\n%s\n' \
-              "Merging upstream \`$REF\` into \`$TRUNK\` conflicts. Resolve it locally:" \
-              '```' "git fetch origin && git switch $TRUNK && git merge origin/$branch" '```' \
-              'Syncs and releases from upstream stay paused until this lands.')"
-            gh pr create --base "$TRUNK" --head "$branch" --title "Sync upstream $REF into $TRUNK" \
-              --body "$body" --assignee "$OWNER"
-            echo "::warning::Upstream $REF conflicts with $TRUNK. Opened a sync PR."
-          else
+          if [ -n "$pr" ]; then
             created="$(gh pr view "$pr" --json createdAt -q .createdAt)"
             age=$(( ( $(date +%s) - $(date -d "$created" +%s) ) / 86400 ))
             echo "::notice::Upstream $REF still conflicts. PR #$pr is $age days old."
             if [ "$age" -gt 0 ] && [ $(( age % 7 )) -eq 0 ]; then
-              gh pr comment "$pr" --body "Still conflicting after $age days. Syncs and releases stay paused."
+              gh pr comment "$pr" --body "Still conflicting after $age days. Syncs and releases from upstream stay paused."
             fi
+            exit 0
           fi
+
+          # Repeat the merge only to list the conflicting files for the PR body.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rev-parse -q --verify "$SHA^{commit}" >/dev/null || git fetch -q upstream "$SHA"
+          git merge -q --no-commit --no-ff "$SHA" >/dev/null 2>&1 || true
+          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+          files="$(git diff --name-only --diff-filter=U | sed 's/.*/- `&`/')"
+          git merge --abort 2>/dev/null || true
+
+          if [ "$SOURCE" = tip ]; then
+            release_note="This fork follows the upstream tip, so nothing releases on its own. To release, run \`gh workflow run fork-release.yml\`."
+          else
+            release_note="GitHub then marks this PR as merged, and the fork's release workflow publishes a new release."
+          fi
+
+          cat >body.md <<BODY
+          The scheduled sync could not merge upstream \`$REF\` into \`$TRUNK\`. Syncs and releases from upstream stay paused until this lands. The mirror branch \`$MIRROR\` keeps following upstream.
+
+          Conflicting files:
+
+          ${files:-- (none listed)}
+
+          ## Resolve it
+
+          Run these steps in a clone of this fork. Do not use the merge button on this PR: a squash or rebase merge drops upstream's commits from the trunk's history, and the next sync conflicts again.
+
+          1. Update the trunk:
+
+             \`\`\`bash
+             git fetch origin
+             git switch $TRUNK
+             git merge --ff-only origin/$TRUNK
+             \`\`\`
+
+          2. Merge the upstream release into the trunk:
+
+             \`\`\`bash
+             git merge --no-ff -m "Merge upstream $REF" origin/$branch
+             \`\`\`
+
+          3. Fix each conflicting file. Where upstream now does what a fork patch did, keep upstream's version. Then finish the merge:
+
+             \`\`\`bash
+             git add <files>
+             git commit --no-edit
+             \`\`\`
+
+          4. Run the fork's verify command:
+
+             \`\`\`bash
+             $VERIFY
+             \`\`\`
+
+          5. Push the trunk. $release_note
+
+             \`\`\`bash
+             git push origin $TRUNK
+             \`\`\`
+
+          6. After GitHub shows this PR as merged, delete the \`$branch\` branch from this page.
+
+          Never push to \`$MIRROR\` or to upstream. In Claude Code, the fork skill can do these steps: ask it to resolve this sync PR.
+          BODY
+
+          gh pr create --base "$TRUNK" --head "$branch" --title "Sync upstream $REF into $TRUNK" \
+            --body-file body.md --assignee "$OWNER"
+          echo "::warning::Upstream $REF conflicts with $TRUNK. Opened a sync PR."
