@@ -123,6 +123,12 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | `release.assets` | Files attached to the GitHub Release, for tools that download release assets |
 | `release.commit` | Paths force-added into a commit that is pushed only as the release tag, for git-URL installs |
 
+## Limits
+
+The workflows set up only Node. For a project in another language, `verify` and `build` run
+with the toolchains that the GitHub runner image preinstalls, at unpinned versions. The skill
+warns about this before it creates or adopts such a fork.
+
 ## How changes reach the forks
 
 The forks call the workflows at `@v1`, a tag that moves.

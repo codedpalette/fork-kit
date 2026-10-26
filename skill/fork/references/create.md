@@ -44,6 +44,11 @@ that upstream has no clear release cut. Then ask what to do:
   The user cuts releases with the `release` mode.
 - Stop. The user forks again after upstream starts to release.
 
+If the project has no `package.json`, warn the user before the questions. The kit sets up
+only Node. For a project in another language, `verify` and `build` run with the toolchains
+that the GitHub runner image preinstalls, such as Python, Go, Rust or Java. Those versions are not pinned, and each GitHub image update can change them. Ask
+whether to continue on those terms.
+
 Then ask the open questions, each with its proposed default:
 
 | Question | Default |
@@ -112,7 +117,8 @@ names that the fork already uses.
 
 1. Read what exists: the branches, the workflows on the trunk, how the fork releases today,
    and the secrets (`gh secret list`).
-2. Ask only what the existing setup does not answer. Run the release detection above.
+2. Ask only what the existing setup does not answer. Run the release detection above. For a
+   project without `package.json`, give the Node-only warning above.
 3. Render the templates on a `setup/fork` branch from the trunk. In the same PR, delete the
    fork's old sync and release workflows that the callers replace.
 4. Do step 4 of the persistent fork. The distribute workflow overwrites an old `SYNC_TOKEN`.
