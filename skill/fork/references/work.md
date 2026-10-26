@@ -43,6 +43,10 @@ On a conflict, stop. List the files with `git diff --name-only --diff-filter=U` 
 to the user. Do not resolve them. On a clean merge, run the `verify` command from `fork.yml`
 before you push. Never push the mirror by hand: the workflow keeps it equal to upstream.
 
+A push to the trunk starts the release workflow on its own, unless `sync.source` is `tip`.
+Do not also dispatch `fork-release.yml`, because a second run publishes a duplicate release.
+For a `tip` fork, offer the `release` mode after the push.
+
 If the workflow parked a conflict in a `sync/<ref>` PR, the PR body lists the conflicting files
 and the steps. Follow them with the user:
 
@@ -51,7 +55,8 @@ and the steps. Follow them with the user:
 2. Merge: `git merge --no-ff -m "Merge upstream <ref>" origin/sync/<ref>`.
 3. Show the user each conflict and agree on the resolution. Where upstream now does what a
    fork patch did, propose upstream's version. Never pick a side without the user.
-4. Run the `verify` command, then push the trunk. GitHub marks the PR as merged.
+4. Run the `verify` command, then push the trunk. GitHub marks the PR as merged, and the
+   push starts the release workflow on its own.
 5. Never use the PR's merge button. A squash or rebase merge drops upstream's commits from
    the trunk's history.
 
