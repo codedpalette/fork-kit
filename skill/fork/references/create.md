@@ -45,8 +45,8 @@ that upstream has no clear release cut. Then ask what to do:
 - Stop. The user forks again after upstream starts to release.
 
 If the project has no `package.json`, warn the user before the questions. The kit sets up
-only Node. For a project in another language, `verify` and `build` run with the toolchains
-that the GitHub runner image preinstalls, such as Python, Go, Rust or Java. Those versions are not pinned, and each GitHub image update can change them. Ask
+only Node. In another language, `verify` and `build` run with the toolchains that the
+GitHub runner image preinstalls, such as Python, Go, Rust or Java. Those versions are not pinned, and each GitHub image update can change them. Ask
 whether to continue on those terms.
 
 Then ask the open questions, each with its proposed default:
