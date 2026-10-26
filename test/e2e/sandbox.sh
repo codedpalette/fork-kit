@@ -115,6 +115,9 @@ YAML
     git add -A && git commit -q -m "chore: set up fork tooling"
     git push -q --force origin patched:refs/heads/patched patched:refs/heads/e2e-baseline
     gh repo edit "$SANDBOX" --default-branch patched >/dev/null
+    # Sync PRs are opened with the job's GITHUB_TOKEN, which needs this setting.
+    gh api -X PUT "repos/$SANDBOX/actions/permissions/workflow" \
+        -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
 }
 
 reset() {

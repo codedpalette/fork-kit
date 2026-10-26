@@ -91,11 +91,13 @@ verify_failure() {
     reset_sandbox
     local before
     before="$(trunk_sha)"
-    upstream_change "feat: new answer" v0.4.0 \
-        "sed -i '' '2s/42/43/' lib.js"
+    # test.js, not lib.js: an edit next to the fork's line 1 would conflict.
+    upstream_change "test: expect a new answer" v0.4.0 \
+        "sed -i '' '2s/42/43/' test.js"
     dispatch "$SANDBOX" fork-sync.yml
     check "run fails" run_failed
     check "trunk unchanged" test "$(trunk_sha)" = "$before"
+    check "no sync PR" test "$(sync_prs v0.4.0)" = 0
 }
 
 # Upstream's test prints everything a malicious dependency could read, in
@@ -104,7 +106,7 @@ token_isolation() {
     reset_sandbox
     upstream_change "test: dump the environment" v0.4.1 "cat >>test.js <<'JS'
 import { execSync } from 'node:child_process';
-const dump = execSync('env; cat .git/config; cat \"\$GITHUB_ENV\" \"\$GITHUB_OUTPUT\" 2>/dev/null; true', { shell: '/bin/bash' });
+const dump = execSync('env; cat .git/config; cat \"\$GITHUB_ENV\" \"\$GITHUB_OUTPUT\" \"\$RUNNER_TEMP\"/git-credentials-* 2>/dev/null; true', { shell: '/bin/bash' });
 console.log('DUMP:' + dump.toString('base64'));
 JS"
     dispatch "$SANDBOX" fork-sync.yml

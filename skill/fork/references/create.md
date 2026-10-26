@@ -88,11 +88,13 @@ The mirror is the upstream default branch name, and it already exists in the for
 
 ```bash
 gh api -X PUT repos/<owner>/<name>/actions/permissions -F enabled=true -f allowed_actions=all
+gh api -X PUT repos/<owner>/<name>/actions/permissions/workflow \
+  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
 gh workflow disable <workflow> -R <owner>/<name>      # once per approved upstream workflow
 gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
 ```
 
-Make sure that the secret arrived: `gh secret list -R <owner>/<name>` lists `SYNC_TOKEN`.
+The second command lets the sync workflow open its conflict PRs. Make sure that the secret arrived: `gh secret list -R <owner>/<name>` lists `SYNC_TOKEN`.
 
 ### 5. Finish
 
