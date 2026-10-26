@@ -239,12 +239,13 @@ jobs:
           fi
 
           # Notes: the upstream base, and the fork's own commits since the
-          # previous fork release. Upstream's commits are left out.
+          # previous fork release. Upstream's commits and commits that touch
+          # only .github/ (the fork's CI) are left out.
           # Not --merged: in commit mode, release tags point off the trunk.
           previous="$(git tag -l "*-$SUFFIX.*" --sort=-creatordate | grep -vx "$VERSION" | head -n 1 || true)"
           range="$SHA"
           [ -n "$previous" ] && range="$previous..$SHA"
-          changes="$(git log --no-merges --format='- %s' "$range" "^$BASE" 2>/dev/null || true)"
+          changes="$(git log --no-merges --format='- %s' "$range" "^$BASE" -- . ':(exclude).github' 2>/dev/null || true)"
           {
             echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$BASE) with this fork's patches."
             echo
