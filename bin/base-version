@@ -2,7 +2,7 @@
 #
 # Print the upstream version a fork release is based on.
 #
-#   base-version <source> [<version-file>]
+#   base-version <source> [<version-file>] [<upstream ref>]
 #
 # For release, tag and npm sources: the nearest tag reachable from HEAD that is
 # a bare version, with upstream's own prefix kept (v3.1.3, 8.6.0). Tags with a
@@ -10,24 +10,31 @@
 # fetched into the repository first.
 #
 # For the tip source: the .version field of <version-file> (default
-# package.json), because a tip-following upstream has no tags to go by.
+# package.json), because a tip-following upstream has no tags to go by. Without
+# that field, the UTC commit date of the newest upstream commit in HEAD, as
+# YYYY.M.D (2026.1.5): a valid semver that sorts by date. <upstream ref> is
+# upstream's branch, for example upstream/main.
 #
 # Exit codes: 0 found, 2 usage error, 3 no base version.
 
 set -euo pipefail
 
-usage() { echo "usage: ${0##*/} <release|tag|npm|tip> [<version-file>]" >&2; exit 2; }
+usage() { echo "usage: ${0##*/} <release|tag|npm|tip> [<version-file>] [<upstream ref>]" >&2; exit 2; }
 
 [ $# -ge 1 ] || usage
-source="$1" version_file="${2:-package.json}"
+source="$1" version_file="${2:-package.json}" upstream_ref="${3:-}"
 
 case "$source" in
     release | tag | npm)
         git describe --tags --abbrev=0 --match '*[0-9]*' --exclude '*-*' HEAD 2>/dev/null || exit 3
         ;;
     tip)
-        [ -f "$version_file" ] || exit 3
-        version="$(jq -r '.version // empty' "$version_file")"
+        version=""
+        [ -f "$version_file" ] && version="$(jq -r '.version // empty' "$version_file")"
+        if [ -z "$version" ] && [ -n "$upstream_ref" ]; then
+            base="$(git merge-base HEAD "$upstream_ref" 2>/dev/null)" || exit 3
+            version="$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y.%-m.%-d "$base")"
+        fi
         [ -n "$version" ] || exit 3
         printf '%s\n' "$version"
         ;;

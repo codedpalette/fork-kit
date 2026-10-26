@@ -41,7 +41,8 @@ Exit code 3 means that the source has no release. If all three find nothing, tel
 that upstream has no clear release cut. Then ask what to do:
 
 - Follow the upstream tip. Sync merges the tip into the trunk. Nothing releases automatically.
-  The user cuts releases with the `release` mode.
+  The user cuts releases with the `release` mode. Without a version file, a release is
+  versioned by the date of the newest upstream commit, for example `2026.1.5-patched.1`.
 - Stop. The user forks again after upstream starts to release.
 
 If the project has no `package.json`, warn the user before the questions. The kit sets up

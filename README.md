@@ -118,7 +118,7 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | `sync.verify` | Command that must pass before a sync pushes |
 | `release.suffix` | Release version is `<upstream base>-<suffix>.<N>` |
 | `release.build` | Command that builds the files to release |
-| `release.version-file` | File whose `.version` is the base, only for `source: tip` |
+| `release.version-file` | File whose `.version` is the base, only for `source: tip`. Without that file or field, the base is the UTC date of the newest upstream commit in the trunk, as `YYYY.M.D` (for example `2026.1.5-patched.1`). |
 | `release.stamp` | Map of file to `jq` filter, applied at build time and never committed. `$version` holds the release version. |
 | `release.assets` | Files attached to the GitHub Release, for tools that download release assets |
 | `release.commit` | Paths force-added into a commit that is pushed only as the release tag, for git-URL installs |

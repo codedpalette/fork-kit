@@ -81,14 +81,17 @@ jobs:
         env:
           UPSTREAM: ${{ steps.config.outputs.upstream }}
           SOURCE: ${{ steps.config.outputs.source }}
+          MIRROR: ${{ steps.config.outputs.mirror }}
           SUFFIX: ${{ steps.config.outputs.suffix }}
           VERSION_FILE: ${{ steps.config.outputs.version-file }}
           REQUESTED: ${{ inputs.version }}
         run: |
-          # Upstream's tags give the base; the fork's own tags give N.
-          git fetch -q --tags "https://github.com/$UPSTREAM.git"
+          # Upstream's tags give the base; the fork's own tags give N. A tip
+          # fork without a version file is based on upstream's commit date.
+          git fetch -q --tags "https://github.com/$UPSTREAM.git" \
+            "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
 
-          base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE")" || {
+          base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE" "upstream/$MIRROR")" || {
             echo "::error::Found no upstream version to base the release on."
             exit 1
           }

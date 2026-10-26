@@ -39,3 +39,26 @@ setup() { make_repo; }
     run "$BIN/base-version" release
     [ "$status" -eq 3 ]
 }
+
+@test "tip source without a version file: date of the newest upstream commit merged in" {
+    GIT_COMMITTER_DATE="2026-01-05T23:30:00Z" commit upstream-work
+    git branch upstream-tip
+    GIT_COMMITTER_DATE="2026-03-09T10:00:00Z" commit fork-patch
+    run "$BIN/base-version" tip package.json upstream-tip
+    [ "$status" -eq 0 ]
+    [ "$output" = "2026.1.5" ]
+}
+
+@test "tip source: a version file wins over the date" {
+    echo '{"version": "2.4.0"}' >package.json
+    commit a
+    run "$BIN/base-version" tip package.json HEAD
+    [ "$output" = "2.4.0" ]
+}
+
+@test "tip source without a version file or an upstream ref exits 3" {
+    commit a
+    run "$BIN/base-version" tip
+    [ "$status" -eq 3 ]
+}
+
