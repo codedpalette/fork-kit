@@ -18,9 +18,9 @@ versioned releases.
 | Token expiry warning | `.github/workflows/token-expiry.yml` | Opens an issue 14 days before `SYNC_TOKEN` expires |
 | Version scripts | `bin/` | Find upstream's release, the base version and the next fork version |
 
-Status: the skill, the hook and the version scripts are in place. The reusable workflows,
-the secret distribution and the expiry warning come next. Until then, the setup steps below
-that use them do not work yet.
+Status: the skill, the hook, the version scripts, the secret distribution and the expiry
+warning are in place. The reusable sync and release workflows come next. Until then, forks
+cannot call them yet.
 
 ## Is it safe to keep this repository public?
 
