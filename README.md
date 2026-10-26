@@ -15,11 +15,9 @@ versioned releases.
 | Detection hook | `skill/fork/hooks/detect-fork.sh` | Tells a fresh agent session to load the skill inside a fork |
 | Reusable workflows | `.github/workflows/sync.yml`, `release.yml` | Sync upstream into the trunk, publish releases |
 | Secret distribution | `.github/workflows/distribute-secret.yml` | Copies `SYNC_TOKEN` from this repository into each fork |
-| Token expiry warning | `.github/workflows/token-expiry.yml` | Opens an issue 14 days before `SYNC_TOKEN` expires |
 | Version scripts | `bin/` | Find upstream's release, the base version and the next fork version |
 
-Status: the skill, the hook, the version scripts, the secret distribution and the expiry
-warning are in place. The reusable sync and release workflows come next. Until then, forks
+Status: the skill, the hook, the version scripts and the secret distribution are in place. The reusable sync and release workflows come next. Until then, forks
 cannot call them yet.
 
 ## Is it safe to keep this repository public?
@@ -94,7 +92,7 @@ only for the distribution workflow.
 
 ## Rotate the token
 
-When the expiry issue opens, regenerate the token at
+GitHub emails you 7 days before the token expires. Then regenerate it at
 <https://github.com/settings/personal-access-tokens>. Store the new value with
 `gh secret set SYNC_TOKEN -R <kit repo>`, then copy it into every fork:
 
