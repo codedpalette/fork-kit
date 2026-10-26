@@ -1,0 +1,260 @@
+name: Release
+
+# Reusable workflow: publishes a fork release, versioned
+# <upstream base>-<suffix>.<N>. Forks call it from fork-release.yml (on a push
+# to the trunk, or by hand) and from fork-sync.yml after a merge.
+#
+# ---------------------------------------------------------------------------
+# SECURITY: READ THIS BEFORE YOU EDIT THIS FILE
+#
+# The build runs upstream's code (install, verify, build). A step can plant
+# things for the later steps of its own job (a fake `gh` on PATH, variables in
+# GITHUB_ENV), so the build and the publishing never share a job:
+#
+#   build    runs upstream's code. Read-only permissions, no secrets, no
+#            github.token, and every checkout sets persist-credentials: false.
+#            It hands the built files over as one tar artifact.
+#   publish  can write tags and releases. It runs only git, gh, tar and the
+#            kit's own scripts on the files from the artifact: no npm, node or
+#            other interpreter, no eval or sh -c, no action except checkout and
+#            download-artifact, and never the fork's verify or build command.
+#
+# test/check-isolation checks these in CI. If a change needs to break one,
+# redesign it instead of loosening the check.
+# ---------------------------------------------------------------------------
+#
+# Nothing is committed to the trunk. Stamped fields (version, name, id) exist
+# only in the released files, so upstream's version bumps never conflict.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version to publish, instead of the computed one
+        type: string
+        default: ''
+    outputs:
+      tag:
+        description: The published release tag
+        value: ${{ jobs.publish.outputs.tag }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      base: ${{ steps.version.outputs.base }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - name: Check out the trunk
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fork
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Find the kit
+        id: kit
+        working-directory: fork
+        run: |
+          echo "repo=$(yq -r '.["kit-repo"] // ""' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+          echo "ref=$(yq -r '.kit // "v1"' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.kit.outputs.repo }}
+          ref: ${{ steps.kit.outputs.ref }}
+          path: kit
+          persist-credentials: false
+
+      - name: Read fork.yml
+        id: config
+        working-directory: fork
+        run: ../kit/bin/fork-config .github/fork.yml >>"$GITHUB_OUTPUT"
+
+      - name: Work out the version
+        id: version
+        working-directory: fork
+        env:
+          UPSTREAM: ${{ steps.config.outputs.upstream }}
+          SOURCE: ${{ steps.config.outputs.source }}
+          SUFFIX: ${{ steps.config.outputs.suffix }}
+          VERSION_FILE: ${{ steps.config.outputs.version-file }}
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          # Upstream's tags give the base; the fork's own tags give N.
+          git fetch -q --tags "https://github.com/$UPSTREAM.git"
+
+          base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE")" || {
+            echo "::error::Found no upstream version to base the release on."
+            exit 1
+          }
+          if [ -n "$REQUESTED" ]; then
+            if ! [[ "$REQUESTED" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              echo "::error::Not a valid version: $REQUESTED"
+              exit 1
+            fi
+            version="$REQUESTED"
+          else
+            version="$(../kit/bin/next-version "$base" "$SUFFIX")"
+          fi
+          if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+            echo "::error::Tag $version already exists."
+            exit 1
+          fi
+
+          {
+            echo "version=$version"
+            echo "base=$base"
+            echo "sha=$(git rev-parse HEAD)"
+          } >>"$GITHUB_OUTPUT"
+          echo "::notice::Building $version (upstream $base)."
+
+      - name: Stamp the files
+        working-directory: fork
+        env:
+          STAMP: ${{ steps.config.outputs.stamp }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          jq -r 'to_entries[] | [.key, .value] | @tsv' <<<"$STAMP" |
+            while IFS=$'\t' read -r file filter; do
+              jq --arg version "$VERSION" "$filter" "$file" >"$file.stamped"
+              cat "$file.stamped" >"$file" && rm "$file.stamped"
+              echo "Stamped $file"
+            done
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.config.outputs.node }}
+
+      - name: Verify
+        working-directory: fork
+        env:
+          VERIFY: ${{ steps.config.outputs.verify }}
+        run: bash -euo pipefail -c "$VERIFY"
+
+      - name: Build
+        working-directory: fork
+        env:
+          BUILD: ${{ steps.config.outputs.build }}
+        run: bash -euo pipefail -c "$BUILD"
+
+      - name: Pack the release files
+        working-directory: fork
+        env:
+          STAMP: ${{ steps.config.outputs.stamp }}
+          ASSETS: ${{ steps.config.outputs.assets }}
+          COMMIT: ${{ steps.config.outputs.commit }}
+        run: |
+          jq -nr --argjson s "$STAMP" --argjson a "$ASSETS" --argjson c "$COMMIT" \
+            '($s | keys) + $a + $c | unique | .[]' >../release-files.txt
+          if [ ! -s ../release-files.txt ]; then
+            echo "::error::fork.yml lists no release files: set release.assets or release.commit."
+            exit 1
+          fi
+          tar -cf ../release.tar -T ../release-files.txt
+
+      - name: Upload the release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files
+          path: release.tar
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Check out the built commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fork
+          ref: ${{ needs.build.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Find the kit
+        id: kit
+        working-directory: fork
+        run: |
+          echo "repo=$(yq -r '.["kit-repo"] // ""' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+          echo "ref=$(yq -r '.kit // "v1"' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.kit.outputs.repo }}
+          ref: ${{ steps.kit.outputs.ref }}
+          path: kit
+          persist-credentials: false
+
+      - name: Read fork.yml
+        id: config
+        working-directory: fork
+        run: ../kit/bin/fork-config .github/fork.yml >>"$GITHUB_OUTPUT"
+
+      - name: Download the release files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+
+      - name: Publish
+        working-directory: fork
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          UPSTREAM: ${{ steps.config.outputs.upstream }}
+          SUFFIX: ${{ steps.config.outputs.suffix }}
+          ASSETS: ${{ steps.config.outputs.assets }}
+          COMMIT: ${{ steps.config.outputs.commit }}
+          VERSION: ${{ needs.build.outputs.version }}
+          BASE: ${{ needs.build.outputs.base }}
+          SHA: ${{ needs.build.outputs.sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch -q --tags "https://github.com/$UPSTREAM.git"
+
+          mkdir -p ../out
+          tar -xf ../release.tar -C ../out
+
+          # Commit mode: the built files go into a commit that only the tag
+          # points at, for installs that read the git tree (npm git URLs).
+          target="$SHA"
+          if [ "$(jq length <<<"$COMMIT")" -gt 0 ]; then
+            tar -xf ../release.tar
+            jq -r '.[]' <<<"$COMMIT" | xargs git add -f --
+            git add -u
+            git commit -q -m "chore(release): $VERSION [skip ci]"
+            git tag -a "$VERSION" -m "Release $VERSION"
+            git push -q origin "refs/tags/$VERSION"
+            target="$(git rev-parse HEAD)"
+          fi
+
+          # Notes: the upstream base, and the fork's own commits since the
+          # previous fork release. Upstream's commits are left out.
+          # Not --merged: in commit mode, release tags point off the trunk.
+          previous="$(git tag -l "*-$SUFFIX.*" --sort=-creatordate | grep -vx "$VERSION" | head -n 1 || true)"
+          range="$SHA"
+          [ -n "$previous" ] && range="$previous..$SHA"
+          changes="$(git log --no-merges --format='- %s' "$range" "^$BASE" 2>/dev/null || true)"
+          {
+            echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$BASE) with this fork's patches."
+            echo
+            echo "## Fork changes since ${previous:-the start of the fork}"
+            echo
+            echo "${changes:-- None}"
+          } >../notes.md
+
+          assets=()
+          while read -r file; do assets+=("../out/$file"); done < <(jq -r '.[]' <<<"$ASSETS")
+          gh release create "$VERSION" --target "$target" --title "$VERSION" \
+            --notes-file ../notes.md "${assets[@]}"
+          echo "::notice::Published $VERSION."

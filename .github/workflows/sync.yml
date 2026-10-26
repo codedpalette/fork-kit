@@ -25,7 +25,7 @@ name: Sync upstream
 #          only the tree that the merge job verified.
 #   other  Any new job gets no SYNC_TOKEN.
 #
-# test/check-sync-isolation checks these in CI (test/sync-isolation.bats). If
+# test/check-isolation checks these in CI (test/isolation.bats). If
 # a change needs to break an invariant, redesign it instead of loosening the
 # check.
 # ---------------------------------------------------------------------------
