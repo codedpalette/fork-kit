@@ -189,13 +189,15 @@ jobs:
         run: |
           git remote add upstream "https://github.com/$UPSTREAM.git"
           git fetch -q --tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+          # GitHub occasionally rejects a push with a transient server error.
+          retry() { local d; for d in 0 5 20; do sleep "$d"; "$@" && return 0; done; return 1; }
 
           if git rev-parse -q --verify "refs/remotes/origin/$MIRROR" >/dev/null &&
              ! git merge-base --is-ancestor "origin/$MIRROR" "upstream/$MIRROR"; then
             git log --format='%h %s' "upstream/$MIRROR..origin/$MIRROR" |
               while read -r line; do echo "::warning::Dropped from $MIRROR: $line"; done
           fi
-          git push -q --force origin "refs/remotes/upstream/$MIRROR:refs/heads/$MIRROR"
+          retry git push -q --force origin "refs/remotes/upstream/$MIRROR:refs/heads/$MIRROR"
 
       - name: Push the merge
         id: push
@@ -209,6 +211,8 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # GitHub occasionally rejects a push with a transient server error.
+          retry() { local d; for d in 0 5 20; do sleep "$d"; "$@" && return 0; done; return 1; }
           git rev-parse -q --verify "$SHA^{commit}" >/dev/null || git fetch -q upstream "$SHA"
           git merge -q --no-ff -m "Merge upstream $REF [skip ci]" "$SHA"
 
@@ -217,7 +221,7 @@ jobs:
             exit 1
           fi
 
-          git push -q origin "HEAD:refs/heads/$TRUNK"
+          retry git push -q origin "HEAD:refs/heads/$TRUNK"
           echo "merged=true" >>"$GITHUB_OUTPUT"
           echo "::notice::Merged upstream $REF into $TRUNK."
 
@@ -232,8 +236,10 @@ jobs:
           REF: ${{ needs.merge.outputs.ref }}
           SHA: ${{ needs.merge.outputs.sha }}
         run: |
+          # GitHub occasionally rejects a push with a transient server error.
+          retry() { local d; for d in 0 5 20; do sleep "$d"; "$@" && return 0; done; return 1; }
           branch="sync/$REF"
-          git push -q --force origin "$SHA:refs/heads/$branch"
+          retry git push -q --force origin "$SHA:refs/heads/$branch"
 
           pr="$(gh pr list --base "$TRUNK" --head "$branch" --state open --json number -q '.[0].number // empty')"
           if [ -z "$pr" ]; then
