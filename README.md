@@ -11,8 +11,8 @@ versioned releases.
 
 | Part | Where | Job |
 |---|---|---|
-| The `fork` skill | `skill/fork/` | Classifies a fork request, creates and adopts forks, guides daily work |
-| Detection hook | `skill/fork/hooks/detect-fork.sh` | Tells a fresh agent session to load the skill inside a fork |
+| The `fork` skill | `skills/fork/` | Classifies a fork request, creates and adopts forks, guides daily work |
+| Detection hook | `hooks/hooks.json`, `scripts/detect-fork.sh` | Tells a fresh agent session to load the skill inside a fork |
 | Reusable workflows | `.github/workflows/sync.yml`, `release.yml` | Sync upstream into the trunk, publish releases |
 | Secret distribution | `.github/workflows/distribute-secret.yml` | Copies `SYNC_TOKEN` from this repository into each fork |
 | Version scripts | `bin/` | Find upstream's release, the base version and the next fork version |
@@ -32,40 +32,37 @@ which only collaborators with write access can use:
 - Every fork calls the workflows at `@v1`. Only accounts with write access can move that tag.
   Keep yourself the only one with write access.
 
-## Set up on a new machine
+## Set up on a machine
 
-The token and the workflows live on GitHub, so a new machine needs only the skill and the hook.
+The repository is a Claude Code plugin and its own marketplace. The token and the workflows
+live on GitHub, so a machine needs only the plugin.
 
 1. Install `git`, `gh`, `jq` and `yq`, then run `gh auth login`.
-2. Clone this repository and link the skill into Claude Code:
+2. Install the plugin:
 
    ```bash
-   git clone https://github.com/codedpalette/fork-kit.git ~/Projects/fork-kit
-   mkdir -p ~/.claude/skills
-   ln -s ~/Projects/fork-kit/skill/fork ~/.claude/skills/fork
+   claude plugin marketplace add codedpalette/fork-kit
+   claude plugin install fork-kit@fork-kit
    ```
 
-3. Register the detection hook in `~/.claude/settings.json`. Merge this into the existing
-   `hooks` object:
-
-   ```json
-   {
-     "hooks": {
-       "SessionStart": [
-         {
-           "hooks": [
-             { "type": "command", "command": "$HOME/.claude/skills/fork/hooks/detect-fork.sh" }
-           ]
-         }
-       ]
-     }
-   }
-   ```
-
+3. Turn on auto-update for the marketplace: in Claude Code, open `/plugin`, then
+   Marketplaces, then `fork-kit`, then "Enable auto-update". Claude Code turns it off by
+   default for marketplaces outside Anthropic.
 4. Make sure that it works. In a clone of any fork made with the kit, start a new Claude Code
    session and ask "what kind of repository is this?". The answer names the fork's trunk.
 
-A `git pull` in `~/Projects/fork-kit` updates the skill on that machine.
+The plugin has the skill `fork-kit:fork` and a `SessionStart` hook. In a repository with
+`.github/fork.yml` on its default branch, the hook tells a fresh session to load the skill.
+
+### Updates
+
+`plugin.json` has no `version` field, so every commit on `main` is a new plugin version. With
+auto-update on, each machine downloads it in the background, up to 10 minutes after the first
+message of a session. `/reload-plugins` or a new session loads it. Without auto-update, run
+`claude plugin update fork-kit@fork-kit`.
+
+Because every commit on `main` reaches every machine, change the skill on a branch and merge
+it when it works.
 
 ## Set up from scratch for another GitHub account
 
@@ -84,7 +81,8 @@ A `git pull` in `~/Projects/fork-kit` updates the skill on that machine.
    gh secret set SYNC_TOKEN -R <your login>/fork-kit
    ```
 
-4. Do the steps of "Set up on a new machine", with your copy's URL.
+4. Do the steps of "Set up on a machine", with `<your login>/fork-kit` as the marketplace.
+   The skill finds your copy of the kit through your GitHub login.
 
 The token needs Workflows write because a sync pushes upstream's changes to
 `.github/workflows/`, which the built-in `GITHUB_TOKEN` cannot push. It needs Secrets write
@@ -138,7 +136,7 @@ The forks call the workflows at `@v1`, a tag that moves.
 | Fix inside a workflow, same inputs | Commit here, move `v1` | On the next run of every fork |
 | New `fork.yml` key with a default | Commit here, move `v1`, note it in `CHANGELOG.md` | The same. A fork opts in by editing its `fork.yml`. |
 | Breaking change | New `v2` tag, new templates, `CHANGELOG.md` | When the skill's `upgrade` mode runs in that fork |
-| Skill behavior | `skill/fork/` | On the next `git pull` of the kit on each machine |
+| Skill or hook | `skills/fork/`, `scripts/` | Through plugin auto-update, on every machine |
 
 ## Security rules for the workflows
 
@@ -159,7 +157,7 @@ The forks call the workflows at `@v1`, a tag that moves.
 ```bash
 brew install bats-core shellcheck actionlint yq
 bats test/
-shellcheck bin/* skill/fork/hooks/*.sh test/check-isolation
+shellcheck bin/* scripts/*.sh test/check-isolation
 actionlint
 ```
 

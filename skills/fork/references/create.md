@@ -1,9 +1,11 @@
 # Create and adopt
 
-`KIT_DIR` below is the kit repository clone that holds this skill:
+`KIT_DIR` below is the root of the fork-kit plugin: two directories above this skill's base
+directory. Claude Code shows that base directory at the top of the loaded skill. The kit's
+scripts are in `$KIT_DIR/bin/`.
 
 ```bash
-KIT_DIR="$(cd "$(dirname "$(readlink -f ~/.claude/skills/fork/SKILL.md)")/../.." && pwd)"
+KIT_DIR="<this skill's base directory>/../.."
 ```
 
 ## One-off fork

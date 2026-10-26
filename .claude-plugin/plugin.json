@@ -1,0 +1,16 @@
+{
+  "name": "fork-kit",
+  "description": "Create and maintain GitHub forks that carry their own patches: one-off fixes, or persistent forks with upstream sync and releases.",
+  "author": {
+    "name": "codedpalette"
+  },
+  "homepage": "https://github.com/codedpalette/fork-kit",
+  "repository": "https://github.com/codedpalette/fork-kit",
+  "keywords": [
+    "fork",
+    "upstream",
+    "sync",
+    "release",
+    "github-actions"
+  ]
+}

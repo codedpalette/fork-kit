@@ -1,6 +1,6 @@
 load helpers
 
-HOOK="$BATS_TEST_DIRNAME/../skill/fork/hooks/detect-fork.sh"
+HOOK="$BATS_TEST_DIRNAME/../scripts/detect-fork.sh"
 
 # A clone whose origin/HEAD (the trunk) has .github/fork.yml, checked out on a
 # branch cut from the mirror, which does not.

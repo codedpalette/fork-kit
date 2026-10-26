@@ -12,5 +12,5 @@
 git show origin/HEAD:.github/fork.yml >/dev/null 2>&1 || exit 0
 
 cat <<'JSON'
-{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This repository is a fork managed by the fork skill: .github/fork.yml is on origin/HEAD. Load the fork skill before you work here."}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"This repository is a fork managed by the fork skill: .github/fork.yml is on origin/HEAD. Load the fork-kit:fork skill before you work here."}}
 JSON

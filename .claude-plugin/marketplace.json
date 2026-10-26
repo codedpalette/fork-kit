@@ -1,0 +1,11 @@
+{
+  "name": "fork-kit",
+  "owner": { "name": "codedpalette" },
+  "plugins": [
+    {
+      "name": "fork-kit",
+      "source": "./",
+      "description": "Create and maintain GitHub forks that carry their own patches: one-off fixes, or persistent forks with upstream sync and releases."
+    }
+  ]
+}
