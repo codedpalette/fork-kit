@@ -212,6 +212,8 @@ jobs:
           GH_REPO: ${{ github.repository }}
           UPSTREAM: ${{ steps.config.outputs.upstream }}
           SUFFIX: ${{ steps.config.outputs.suffix }}
+          SOURCE: ${{ steps.config.outputs.source }}
+          MIRROR: ${{ steps.config.outputs.mirror }}
           ASSETS: ${{ steps.config.outputs.assets }}
           COMMIT: ${{ steps.config.outputs.commit }}
           VERSION: ${{ needs.build.outputs.version }}
@@ -238,20 +240,40 @@ jobs:
             target="$(git rev-parse HEAD)"
           fi
 
-          # Notes: the upstream base, and the fork's own commits since the
-          # previous fork release. Upstream's commits and commits that touch
-          # only .github/ (the fork's CI) are left out.
+          # Notes. A release on a new upstream base links upstream's own
+          # changelog. The fork's commits since the previous fork release are
+          # listed, without upstream's commits and without commits that touch
+          # only .github/ (the fork's CI). Never the whole history.
           # Not --merged: in commit mode, release tags point off the trunk.
           previous="$(git tag -l "*-$SUFFIX.*" --sort=-creatordate | grep -vx "$VERSION" | head -n 1 || true)"
-          range="$SHA"
-          [ -n "$previous" ] && range="$previous..$SHA"
-          changes="$(git log --no-merges --format='- %s' "$range" "^$BASE" -- . ':(exclude).github' 2>/dev/null || true)"
+          previous_base="${previous%-"$SUFFIX".*}"
+
           {
-            echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$BASE) with this fork's patches."
-            echo
-            echo "## Fork changes since ${previous:-the start of the fork}"
-            echo
-            echo "${changes:-- None}"
+            if [ "$SOURCE" = tip ]; then
+              git fetch -q "https://github.com/$UPSTREAM.git" "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+              tip="$(git merge-base "$SHA" "upstream/$MIRROR")"
+              echo "Built from upstream \`$MIRROR\` at [\`${tip:0:12}\`](https://github.com/$UPSTREAM/commit/$tip), with this fork's patches."
+            elif [ "$previous_base" = "$BASE" ]; then
+              echo "Same upstream base as $previous: \`$BASE\`."
+            elif gh release view "$BASE" --repo "$UPSTREAM" >/dev/null 2>&1; then
+              echo "Updates to upstream \`$BASE\`. Upstream's changes: [release notes](https://github.com/$UPSTREAM/releases/tag/$BASE)."
+            elif [ -n "$previous_base" ]; then
+              echo "Updates to upstream \`$BASE\`. Upstream's changes: [$previous_base...$BASE](https://github.com/$UPSTREAM/compare/$previous_base...$BASE)."
+            else
+              echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$BASE)."
+            fi
+
+            if [ -n "$previous" ]; then
+              exclude=("^$BASE")
+              [ "$SOURCE" = tip ] && exclude=("^upstream/$MIRROR")
+              changes="$(git log --no-merges --format='- %s' "$previous..$SHA" "${exclude[@]}" -- . ':(exclude).github' 2>/dev/null || true)"
+              if [ -n "$changes" ]; then
+                echo
+                echo "## Fork changes since $previous"
+                echo
+                echo "$changes"
+              fi
+            fi
           } >../notes.md
 
           assets=()
