@@ -43,3 +43,13 @@ make_fork_clone() {
     [ "$status" -eq 0 ]
     [ -z "$output" ]
 }
+
+@test "stale origin/HEAD (default branch changed after cloning) still finds fork.yml" {
+    make_fork_clone
+    git remote set-head origin mirror
+    [ "$(git rev-parse --abbrev-ref origin/HEAD)" = origin/mirror ]
+    run "$HOOK"
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -e '.hookSpecificOutput.additionalContext | contains("fork-kit:fork")'
+}
+

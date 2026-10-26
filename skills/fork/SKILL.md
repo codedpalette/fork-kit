@@ -41,7 +41,8 @@ Do these before anything else, once per session:
    git show origin/HEAD:.github/fork.yml
    ```
 
-   If `origin/HEAD` is missing, run `git remote set-head origin --auto` first.
+   If that fails, `origin/HEAD` is missing or stale: a clone made before the fork's default
+   branch changed keeps the old one. Run `git remote set-head origin --auto`, then read again.
 2. Make sure that the `upstream` remote exists and cannot be pushed to:
 
    ```bash
