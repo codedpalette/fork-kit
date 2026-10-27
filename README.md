@@ -73,6 +73,12 @@ it when it works.
 4. Do the steps of "Set up on a machine", with `<your login>/fork-kit` as the marketplace.
    The skill finds your copy of the kit through your GitHub login.
 
+Use your own copy rather than calling `codedpalette/fork-kit` from your forks. The owner of a
+kit can move its `v1` tag and change its `main`. Every fork that calls the kit runs that code
+in the job that holds the fork's `SYNC_TOKEN`. Every machine with the plugin and auto-update
+runs that code too, in Claude Code sessions. If you call someone else's kit anyway, set
+`kit` to a full commit SHA, and install the plugin without auto-update.
+
 The token needs Workflows write because a sync pushes upstream's changes to
 `.github/workflows/`, which the built-in `GITHUB_TOKEN` cannot push. It needs Secrets write
 only for the distribution workflow.
@@ -94,7 +100,7 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | Key | Meaning |
 |---|---|
 | `schema` | Version of this contract. For a fork that is behind, the skill proposes an upgrade. |
-| `kit` | Major version of the kit workflows that the fork calls, for example `v1` |
+| `kit` | Version tag of the kit, for example `v1`, or a full commit SHA. Branch names are refused, so a branch cannot stand in for the tag. |
 | `kit-repo` | The kit repository, for example `codedpalette/fork-kit` |
 | `upstream` | `owner/name` of the upstream repository |
 | `mirror` | Upstream's default branch. The fork keeps no copy of it. |
