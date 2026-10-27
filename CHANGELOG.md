@@ -3,6 +3,24 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: whole-.github isolation (schema 1, unchanged)
+
+`bin/merge-upstream` listed upstream's CI files by name, and git quotes names with
+non-ASCII bytes, quotes, backslashes or tabs. Such a file was not removed. An upstream
+workflow was able to land on the trunk and read `SYNC_TOKEN` from the `fork-sync` environment. Now:
+
+- `bin/merge-upstream` removes upstream's whole `.github` and restores only the trunk's own
+  `.github/fork.yml` and `.github/workflows/fork-*`. Nothing is listed by name.
+  `bin/strip-upstream-ci` removes the whole `.github` from `sync/<ref>` branches.
+- The sync's push job keeps no credentials in `.git/config`. Each push gets the token from a
+  credential helper.
+- A first release lists the fork's patches on top of the upstream base.
+- If a release name belonged to a deleted immutable release, the publish job tries the next
+  N. GitHub locks such a name for good.
+
+No change in the forks is needed. Limit the token to the forks: "Only select repositories",
+with each fork, not the kit.
+
 ## kit v1 update: fork rulesets (schema 1, unchanged)
 
 The release's publish job now creates tags and releases with `SYNC_TOKEN` from the

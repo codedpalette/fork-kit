@@ -106,25 +106,27 @@ ci_files() { git ls-tree -r --name-only HEAD -- .github/workflows .github/action
     run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 1"
     [ "$output" = merged ]
     before="$(git rev-parse HEAD)"
-    # Step 2: upstream changes its copy. Git would take that change cleanly.
+    # Step 2: upstream changes its copy. The trunk keeps its own file.
     upstream_commit "upstream: change" "echo 'kit-repo: evil/kit' >>.github/fork.yml"
     run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 2"
-    [ "$output" = conflict ]
-    [ "$(git rev-parse HEAD)" = "$before" ]
-    [ -z "$(git status --porcelain)" ]
+    [ "$output" = merged ]
+    [ "$(git show HEAD:.github/fork.yml)" = "kit: v1" ]
 }
 
-@test "the same two-step takeover is refused for FORK.md and fork workflows" {
+@test "an upstream change to FORK.md is refused, one to a fork workflow is ignored" {
     echo "# Fork" >FORK.md
     git add -A && git commit -q -m "fork: docs"
     upstream_commit "upstream: copy" "echo '# Fork' >FORK.md; echo 'fork sync' >.github/workflows/fork-sync.yml"
     run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 1"
     [ "$output" = merged ]
-    for change in "echo evil >>FORK.md" "echo evil >>.github/workflows/fork-sync.yml"; do
-        upstream_commit "upstream: change" "$change"
-        run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 2"
-        [ "$output" = conflict ]
-    done
+    upstream_commit "upstream: change" "echo evil >>FORK.md"
+    run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 2"
+    [ "$output" = conflict ]
+    git switch -q upstream && git reset -q --hard HEAD~1 && git switch -q trunk
+    upstream_commit "upstream: change" "echo evil >>.github/workflows/fork-sync.yml"
+    run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 3"
+    [ "$output" = merged ]
+    [ "$(git show HEAD:.github/workflows/fork-sync.yml)" = "fork sync" ]
 }
 
 @test "an upstream file identical to the fork's own merges without change" {
@@ -133,5 +135,31 @@ ci_files() { git ls-tree -r --name-only HEAD -- .github/workflows .github/action
     upstream_commit "upstream: same file" "mkdir -p .github; echo 'kit: v1' >.github/fork.yml"
     run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream s"
     [ "$output" = merged ]
+}
+
+@test "workflow file names that git quotes are stripped too" {
+    upstream_commit "upstream: odd names" "echo evil >'.github/workflows/caf\303\251.yml'; printf evil >\$'.github/workflows/tab\tname.yml'; echo evil >'.github/workflows/quote\"d.yml'"
+    run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream q"
+    [ "$status" -eq 0 ]
+    [ "$output" = merged ]
+    [ "$(ci_files)" = ".github/workflows/fork-sync.yml " ]
+}
+
+@test "the rest of upstream's .github is stripped, the fork's fork.yml stays" {
+    mkdir -p .github && echo "kit: v1" >.github/fork.yml
+    git add -A && git commit -q -m "fork: config"
+    upstream_commit "upstream: more .github" "mkdir -p .github/ISSUE_TEMPLATE; echo x >.github/ISSUE_TEMPLATE/bug.md; echo x >.github/dependabot.yml; echo x >.github/CODEOWNERS"
+    run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream g"
+    [ "$output" = merged ]
+    [ "$(git ls-tree -r --name-only HEAD -- .github | tr '\n' ' ')" = ".github/fork.yml .github/workflows/fork-sync.yml " ]
+}
+
+@test "strip-upstream-ci removes every .github file, whatever its name" {
+    printf evil >".github/workflows/caf\303\251.yml"
+    echo x >.github/dependabot.yml
+    git add -A && git commit -q -m "odd names"
+    run "$BIN/strip-upstream-ci" "Remove upstream CI"
+    [ "$status" -eq 0 ]
+    [ -z "$(git ls-tree -r --name-only HEAD -- .github)" ]
 }
 

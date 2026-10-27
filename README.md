@@ -17,9 +17,6 @@ versioned releases.
 | Secret distribution | `.github/workflows/distribute-secret.yml` | Copies `SYNC_TOKEN` from this repository into each fork |
 | Version scripts | `bin/` | Find upstream's release, the base version and the next fork version |
 
-Status: the skill, the hook, the version scripts and the secret distribution are in place. The reusable sync and release workflows come next. Until then, forks
-cannot call them yet.
-
 ## Set up on a machine
 
 The repository is a Claude Code plugin and its own marketplace. The token and the workflows
@@ -60,7 +57,8 @@ it when it works.
    <https://github.com/settings/personal-access-tokens/new>:
    - Resource owner: your account
    - Expiration: the longest that the form offers
-   - Repository access: All repositories
+   - Repository access: Only select repositories, with every fork made with the kit. Not the
+     kit itself, and nothing else.
    - Repository permissions: Contents, Workflows, Secrets and Environments set to read and
      write. Nothing else.
 3. Store it in your copy of the kit. Paste the token at the prompt, not on the command line,
@@ -79,9 +77,14 @@ in the job that holds the fork's `SYNC_TOKEN`. Every machine with the plugin and
 runs that code too, in Claude Code sessions. If you call someone else's kit anyway, set
 `kit` to a full commit SHA, and install the plugin without auto-update.
 
-The token needs Workflows write because a sync pushes upstream's changes to
-`.github/workflows/`, which the built-in `GITHUB_TOKEN` cannot push. It needs Secrets write
-only for the distribution workflow.
+The token needs Workflows write because the fork's own `.github/workflows` files change with
+each kit update, and the built-in `GITHUB_TOKEN` cannot push those. It needs Secrets and
+Environments write only for the distribution workflow.
+
+Keep the token to the forks only. A leaked token then reaches nothing but the forks: not
+your other repositories, and not the kit, whose `main` and `v1` reach every machine and
+every fork. The cost is one manual step per new fork, because GitHub has no API to change a
+token's repositories. The skill tells you at the right moment to add the fork to the token.
 
 ## Rotate the token
 
@@ -137,8 +140,8 @@ The forks call the workflows at `@v1`, a tag that moves.
 
 - Upstream's own GitHub workflows never run with the fork's secrets. GitHub runs the workflow
   files of the default branch and of every pushed commit, so the trunk holds only the fork's
-  `fork-*` workflows: `bin/merge-upstream` strips upstream's `.github/workflows` and
-  `.github/actions` from every merge, `bin/strip-upstream-ci` does the same for `sync/<ref>`
+  `fork-*` workflows: `bin/merge-upstream` removes upstream's whole `.github` from every merge
+  and restores only the fork's own files, `bin/strip-upstream-ci` removes it from `sync/<ref>`
   branches, and upstream's default branch is never pushed to the fork.
 - `SYNC_TOKEN` lives in each fork's `fork-sync` environment, which only the trunk can use, so
   a workflow on any other branch cannot read it.
