@@ -309,7 +309,8 @@ jobs:
           # Notes. A release on a new upstream base links upstream's own
           # changelog. The fork's commits since the previous fork release are
           # listed, without upstream's commits and without commits that touch
-          # only .github/ (the fork's CI). Never the whole history.
+          # only the fork's tooling (.github/ and FORK.md). A first release
+          # lists the fork's patches on top of the upstream base instead.
           # Not --merged: in commit mode, release tags point off the trunk.
           previous="$(git tag -l "*-$SUFFIX.*" --sort=-creatordate | grep -vx "$VERSION" | head -n 1 || true)"
           previous_base="${previous%-"$SUFFIX".*}"
@@ -329,16 +330,21 @@ jobs:
               echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$BASE)."
             fi
 
+            exclude=("^$BASE")
+            [ "$SOURCE" = tip ] && exclude=("^upstream/$MIRROR")
             if [ -n "$previous" ]; then
-              exclude=("^$BASE")
-              [ "$SOURCE" = tip ] && exclude=("^upstream/$MIRROR")
-              changes="$(git log --no-merges --format='- %s' "$previous..$SHA" "${exclude[@]}" -- . ':(exclude).github' 2>/dev/null || true)"
-              if [ -n "$changes" ]; then
-                echo
-                echo "## Fork changes since $previous"
-                echo
-                echo "$changes"
-              fi
+              range=("$previous..$SHA")
+              heading="Fork changes since $previous"
+            else
+              range=("$SHA")
+              heading="This fork's patches on top of upstream"
+            fi
+            changes="$(git log --no-merges --format='- %s' "${range[@]}" "${exclude[@]}" -- . ':(exclude).github' ':(exclude)FORK.md' 2>/dev/null || true)"
+            if [ -n "$changes" ]; then
+              echo
+              echo "## $heading"
+              echo
+              echo "$changes"
             fi
           } >../notes.md
 

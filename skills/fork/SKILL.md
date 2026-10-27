@@ -31,8 +31,8 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    trunk, because the upstream PR then carries every fork patch.
 6. **Keep upstream's CI off the trunk.** GitHub runs the workflow files of the default
    branch, and of every pushed commit, in the fork. The trunk therefore holds only the fork's
-   own `fork-*` workflows: merge upstream with the kit's `bin/merge-upstream`, which strips
-   the rest. Never push upstream's default branch to the fork. A `feat/*` branch has to be
+   own `fork-*` workflows: merge upstream with the kit's `bin/merge-upstream`, which removes
+   upstream's whole `.github` and keeps only the fork's own files. Never push upstream's default branch to the fork. A `feat/*` branch has to be
    pushed for its upstream PR, and upstream's workflows then run on it, but they cannot read
    `SYNC_TOKEN`: it lives in the `fork-sync` environment, which only the trunk can use.
 

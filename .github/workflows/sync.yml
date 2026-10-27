@@ -204,12 +204,15 @@ jobs:
             exit 1
           fi
 
+      # No credentials in git: the token is handed to each push through a
+      # credential helper, so nothing that reads .git/config can find it.
       - name: Check out the trunk
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: fork
           fetch-depth: 0
           token: ${{ secrets.SYNC_TOKEN }}
+          persist-credentials: false
 
       - name: Find the kit
         id: kit
@@ -259,11 +262,17 @@ jobs:
         if: needs.merge.outputs.result == 'merged'
         working-directory: fork
         env:
+          PUSH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           TRUNK: ${{ steps.config.outputs.trunk }}
           REF: ${{ needs.merge.outputs.ref }}
           SHA: ${{ needs.merge.outputs.sha }}
           TREE: ${{ needs.merge.outputs.tree }}
         run: |
+          # The token reaches git through a credential helper that reads it
+          # from the environment, so it is never stored or put on a command line.
+          # shellcheck disable=SC2016 # git expands $PUSH_TOKEN when it runs the helper
+          push() { git -c credential.helper= -c credential.helper='!f() { echo username=x-access-token; echo "password=$PUSH_TOKEN"; }; f' push "$@"; }
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           # GitHub occasionally rejects a push with a transient server error.
@@ -276,7 +285,7 @@ jobs:
             exit 1
           fi
 
-          retry git push -q origin "HEAD:refs/heads/$TRUNK"
+          retry push -q origin "HEAD:refs/heads/$TRUNK"
           echo "merged=true" >>"$GITHUB_OUTPUT"
           echo "::notice::Merged upstream $REF into $TRUNK."
 
@@ -285,6 +294,7 @@ jobs:
         working-directory: fork
         env:
           GH_TOKEN: ${{ github.token }}
+          PUSH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GH_REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           TRUNK: ${{ steps.config.outputs.trunk }}
@@ -296,6 +306,10 @@ jobs:
         run: |
           # GitHub occasionally rejects a push with a transient server error.
           retry() { local d; for d in 0 5 20; do sleep "$d"; "$@" && return 0; done; return 1; }
+          # The token reaches git through a credential helper that reads it
+          # from the environment, so it is never stored or put on a command line.
+          # shellcheck disable=SC2016 # git expands $PUSH_TOKEN when it runs the helper
+          push() { git -c credential.helper= -c credential.helper='!f() { echo username=x-access-token; echo "password=$PUSH_TOKEN"; }; f' push "$@"; }
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git rev-parse -q --verify "$SHA^{commit}" >/dev/null || git fetch -q upstream "$SHA"
@@ -307,7 +321,7 @@ jobs:
           ../kit/bin/strip-upstream-ci "Remove upstream CI from the sync branch [skip ci]"
           head="$(git rev-parse HEAD)"
           git switch -q "$TRUNK"
-          retry git push -q --force origin "$head:refs/heads/$branch"
+          retry push -q --force origin "$head:refs/heads/$branch"
 
           pr="$(gh pr list --base "$TRUNK" --head "$branch" --state open --json number -q '.[0].number // empty')"
           if [ -n "$pr" ]; then

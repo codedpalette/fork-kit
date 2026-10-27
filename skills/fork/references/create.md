@@ -122,8 +122,24 @@ gh api -X POST repos/<owner>/<name>/rulesets --input - <<'JSON'
  "rules": [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}]}
 JSON
 gh api -X PUT repos/<owner>/<name>/immutable-releases
+```
+
+Then the token. The kit's `SYNC_TOKEN` token reaches only the repositories on its list, and
+GitHub has no API to change that list. So stop and tell the user, in these words:
+
+> Add `<owner>/<name>` to the kit's token: open
+> <https://github.com/settings/personal-access-tokens>, open the token stored as `SYNC_TOKEN`
+> in `<kit-repo>`, choose "Only select repositories", add `<owner>/<name>`, and save. Tell me
+> when it is done.
+
+Wait for the user's answer, then copy the token into the fork:
+
+```bash
 gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
 ```
+
+If the distribute run fails with a permissions error, the fork is not on the token's list
+yet. Repeat the instruction above.
 
 The first two commands create the `fork-sync` environment, which only the trunk can use. The
 token lives there, so no workflow on another branch can read it. The fourth command lets the
@@ -160,7 +176,8 @@ names that the fork already uses.
    fork's old sync and release workflows that the callers replace, and remove upstream's CI:
    every file under `.github/workflows` and `.github/actions` that is not a `fork-*` file.
 4. After the user merges the PR, delete the fork's copy of upstream's default branch
-   (`git push origin --delete <mirror>`), then do step 4 of the persistent fork. The
+   (`git push origin --delete <mirror>`), then do step 4 of the persistent fork, including
+   the instruction to add the fork to the kit's token. The
    distribute workflow moves an old repository-level `SYNC_TOKEN` into the environment.
 5. Disable the upstream push URL and run `git remote set-head origin --auto`.
 6. After the user merges the PR, dispatch one sync and one release, and report both.

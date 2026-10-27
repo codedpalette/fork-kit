@@ -39,7 +39,7 @@ git merge --ff-only origin/<trunk>
 "$KIT_DIR/bin/merge-upstream" "$(git rev-parse '<release ref, or upstream/<mirror> for the tip>^{commit}')" "Merge upstream <ref>"
 ```
 
-`KIT_DIR` is as in `references/create.md`. The script merges and strips upstream's CI, which
+`KIT_DIR` is as in `references/create.md`. The script merges and removes upstream's `.github`, which
 must never reach the trunk. It prints `merged`, `current` or `conflict`. On `conflict`,
 repeat the merge with `git merge --no-ff --no-commit`, list the files with
 `git diff --name-only --diff-filter=U`, and hand them to the user. Do not resolve them. On
