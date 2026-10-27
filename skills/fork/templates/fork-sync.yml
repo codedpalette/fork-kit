@@ -29,4 +29,6 @@ jobs:
     if: needs.sync.outputs.merged == 'true'                     # tip:remove
     uses: {{kit_repo}}/.github/workflows/release.yml@v1         # tip:remove
     permissions:                                                # tip:remove
-      contents: write                                           # tip:remove
+      contents: read                                            # tip:remove
+    secrets:                                                    # tip:remove
+      SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}                     # tip:remove

@@ -3,6 +3,20 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: fork rulesets (schema 1, unchanged)
+
+The release's publish job now creates tags and releases with `SYNC_TOKEN` from the
+`fork-sync` environment, not with the job's `GITHUB_TOKEN`. Rulesets in the fork then let
+only admins push to the trunk or create tags, so no other workflow can do either.
+
+An existing fork must do this, in order:
+
+1. In `fork-release.yml`, set `permissions: contents: read` and pass
+   `secrets: { SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }} }`. In `fork-sync.yml`, do the same for
+   the `release` job.
+2. Create the trunk ruleset and the tag ruleset, and enable immutable releases, with the
+   commands in `skills/fork/references/create.md`, step 4.
+
 ## kit v1 update: upstream CI isolation (schema 1, unchanged)
 
 Upstream's own GitHub workflows could read `SYNC_TOKEN`: the sync pushed upstream's commits,
