@@ -5,6 +5,11 @@ on:
     - cron: '{{cron}}'
   workflow_dispatch:
 
+# One sync at a time: a slow verify must not overlap the next scheduled run.
+concurrency:
+  group: fork-sync
+  cancel-in-progress: false
+
 jobs:
   sync:
     uses: {{kit_repo}}/.github/workflows/sync.yml@v1
