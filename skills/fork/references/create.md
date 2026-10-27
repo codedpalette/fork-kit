@@ -57,7 +57,6 @@ Then ask the open questions, each with its proposed default:
 | Question | Default |
 |---|---|
 | Trunk branch name | `patched`, or the organization name for an organization fork |
-| Sync cadence | Daily at 06:17 UTC, cron `17 6 * * *`. Hourly is `17 * * * *`. Keep the minute off 0, where GitHub's scheduler is busiest and runs start late or are dropped. |
 | Release outputs | `assets` for files that a tool downloads from a GitHub Release, or `commit` for files that a git-URL install reads from the tag. Propose from how the project is consumed. |
 | Fields to stamp | Version fields in the files that ship, as `jq` filters on `$version` |
 | Release suffix | `patched` |
