@@ -43,11 +43,11 @@ name: Sync upstream
 # stays green: the open PR is the reminder, not a daily failure email.
 
 on:
-  # The caller passes no secrets. SYNC_TOKEN is declared here only so that
-  # the push job, which runs in the fork-sync environment, can read the
-  # environment's value: a reusable workflow's secrets context holds only the
-  # names it declares. A repository-level secret would be readable by every
-  # workflow in the fork, so the token is never one.
+  # The caller passes SYNC_TOKEN by name. At the caller its value is empty:
+  # the token is not a repository secret, which every workflow in the fork
+  # could read. It lives in the fork-sync environment, and GitHub fills a
+  # passed secret from the environment of the job that runs in it, here the
+  # push job. Without the name passed, the job sees nothing: tested.
   workflow_call:
     secrets:
       SYNC_TOKEN:

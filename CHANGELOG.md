@@ -22,6 +22,9 @@ An existing fork must do this, in order, before the next sync:
 3. Delete the fork's copy of upstream's default branch.
 4. Create the `fork-sync` environment, with a deployment branch policy for the trunk only.
 5. Run `distribute-secret.yml` for the fork.
+6. In `fork-sync.yml`, replace `secrets: inherit` with
+   `secrets: { SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }} }`. The token reaches the push job only
+   when the caller passes it by name.
 
 ## kit v1, schema 1
 

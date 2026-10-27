@@ -19,6 +19,10 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
+    # By name, not "inherit": the kit gets only this secret. Its value comes
+    # from the fork-sync environment, inside the kit's push job.
+    secrets:
+      SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
 
   release:                                                      # tip:remove
     needs: sync                                                 # tip:remove
