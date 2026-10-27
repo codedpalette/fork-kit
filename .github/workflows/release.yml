@@ -176,12 +176,15 @@ jobs:
     outputs:
       tag: ${{ needs.build.outputs.version }}
     steps:
+      # No credentials in git: the token is handed to the one push that
+      # needs it, so nothing that reads .git/config can find it.
       - name: Check out the built commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: fork
           ref: ${{ needs.build.outputs.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Find the kit
         id: kit
@@ -217,6 +220,7 @@ jobs:
           SUFFIX: ${{ steps.config.outputs.suffix }}
           SOURCE: ${{ steps.config.outputs.source }}
           MIRROR: ${{ steps.config.outputs.mirror }}
+          STAMP: ${{ steps.config.outputs.stamp }}
           ASSETS: ${{ steps.config.outputs.assets }}
           COMMIT: ${{ steps.config.outputs.commit }}
           VERSION: ${{ needs.build.outputs.version }}
@@ -227,19 +231,36 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch -q --tags "https://github.com/$UPSTREAM.git"
 
-          mkdir -p ../out
-          tar -xf ../release.tar -C ../out
+          # The archive comes from the build job, which ran upstream's code.
+          # Unpack it into an empty directory outside the checkout, and check
+          # every entry before anything uses it.
+          rm -rf ../out && mkdir ../out
+          tar -xf ../release.tar -C ../out --no-same-owner
+          mapfile -t listed < <(jq -nr --argjson s "$STAMP" --argjson a "$ASSETS" --argjson c "$COMMIT" \
+            '($s | keys) + $a + $c | unique | .[]')
+          ../kit/bin/check-release-files ../out "${listed[@]}"
 
           # Commit mode: the built files go into a commit that only the tag
           # points at, for installs that read the git tree (npm git URLs).
+          # Only the listed paths are copied into the checkout.
           target="$SHA"
           if [ "$(jq length <<<"$COMMIT")" -gt 0 ]; then
-            tar -xf ../release.tar
-            jq -r '.[]' <<<"$COMMIT" | xargs git add -f --
-            git add -u
+            mapfile -t paths < <(jq -nr --argjson s "$STAMP" --argjson c "$COMMIT" '($s | keys) + $c | unique | .[]')
+            for path in "${paths[@]}"; do
+              [ -e "../out/$path" ] || continue
+              rm -rf -- "$path"
+              mkdir -p -- "$(dirname -- "$path")"
+              cp -R -- "../out/$path" "$path"
+              git add -f -- "$path"
+            done
             git commit -q -m "chore(release): $VERSION [skip ci]"
             git tag -a "$VERSION" -m "Release $VERSION"
-            git push -q origin "refs/tags/$VERSION"
+            # The token reaches git through a credential helper that reads it
+            # from the environment, so it is never stored or put on a command line.
+            # shellcheck disable=SC2016 # git expands $GH_TOKEN when it runs the helper
+            git -c credential.helper= \
+              -c credential.helper='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
+              push -q "https://github.com/$GH_REPO.git" "refs/tags/$VERSION"
             target="$(git rev-parse HEAD)"
           fi
 
