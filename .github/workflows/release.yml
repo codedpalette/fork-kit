@@ -290,6 +290,8 @@ jobs:
               -c credential.helper='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
               push -q "https://github.com/$GH_REPO.git" "$@"
           }
+          # GitHub occasionally rejects a push with a transient server error.
+          retry() { local d; for d in 0 5 20; do sleep "$d"; "$@" && return 0; done; return 1; }
 
           # Notes. A release on a new upstream base links upstream's own
           # changelog. The fork's commits since the previous fork release are
@@ -358,14 +360,29 @@ jobs:
               done
               git commit -q -m "chore(release): $VERSION [skip ci]"
               git tag -a "$VERSION" -m "Release $VERSION"
-              push "refs/tags/$VERSION"
+              retry push "refs/tags/$VERSION"
               target="$(git rev-parse HEAD)"
             fi
 
-            status=0
-            output="$(gh release create "$VERSION" --target "$target" --title "$VERSION" \
-              --notes-file ../notes.md "${assets[@]}" 2>&1)" || status=$?
-            echo "$output"
+            # A server error or a timeout is tried again with the same version.
+            # gh uploads the assets to a draft and publishes it last, so a
+            # draft left by a failed try is deleted first, and a release that
+            # was published before the error counts as done.
+            for delay in 0 5 20; do
+              sleep "$delay"
+              status=0
+              output="$(gh release create "$VERSION" --target "$target" --title "$VERSION" \
+                --notes-file ../notes.md "${assets[@]}" 2>&1)" || status=$?
+              echo "$output"
+              if [ "$status" != 0 ] && grep -Eqi 'HTTP 5[0-9][0-9]|timeout|timed out|connection reset|unexpected EOF' <<<"$output"; then
+                draft="$(gh release view "$VERSION" --json isDraft --jq .isDraft 2>/dev/null || true)"
+                if [ "$draft" = false ]; then status=0; break; fi
+                if [ "$draft" = true ]; then gh release delete "$VERSION" --yes; fi
+                echo "::warning::GitHub did not answer. Trying $VERSION again."
+                continue
+              fi
+              break
+            done
             if [ "$status" = 0 ]; then
               echo "::notice::Published $VERSION."
               exit 0
@@ -378,7 +395,7 @@ jobs:
 
             echo "::warning::The name $VERSION belonged to a deleted immutable release. Trying the next one."
             if [ "$target" != "$SHA" ]; then
-              push --delete "refs/tags/$VERSION"
+              retry push --delete "refs/tags/$VERSION"
               git tag -d "$VERSION" >/dev/null
               git reset -q --hard "$SHA"
             fi
