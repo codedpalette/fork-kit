@@ -14,7 +14,16 @@ SCHEMA=1
 file="$1"
 [ -f "$file" ] || { echo "error: $file not found" >&2; exit 1; }
 
-get() { yq -r "$1 // \"$2\"" "$file"; }
+# A value with a newline could add extra name=value lines to $GITHUB_OUTPUT.
+get() {
+    local value
+    value="$(yq -r "$1 // \"$2\"" "$file")"
+    if [[ "$value" == *$'\n'* ]]; then
+        echo "error: $file: ${1#.} must be a single line" >&2
+        exit 1
+    fi
+    printf '%s' "$value"
+}
 json() { yq -o=json -I=0 "$1 // $2" "$file"; }
 fail() { echo "error: $file: $*" >&2; exit 1; }
 
@@ -32,19 +41,32 @@ case "$source" in
     *) fail "sync.source must be release, tag, npm or tip, not '$source'" ;;
 esac
 
+# Assigned one by one: a failing get then stops the script (set -e).
+kit="$(get .kit v1)"
+kit_repo="$(get '.["kit-repo"]' '')"
+upstream="$(get .upstream '')"
+mirror="$(get .mirror '')"
+trunk="$(get .trunk '')"
+node="$(get .node lts/*)"
+npm_package="$(get '.sync["npm-package"]' '')"
+verify="$(get .sync.verify true)"
+suffix="$(get .release.suffix patched)"
+build="$(get .release.build true)"
+version_file="$(get '.release["version-file"]' package.json)"
+
 cat <<OUT
-kit=$(get .kit v1)
-kit-repo=$(get '.["kit-repo"]' '')
-upstream=$(get .upstream '')
-mirror=$(get .mirror '')
-trunk=$(get .trunk '')
-node=$(get .node lts/*)
+kit=$kit
+kit-repo=$kit_repo
+upstream=$upstream
+mirror=$mirror
+trunk=$trunk
+node=$node
 source=$source
-npm-package=$(get '.sync["npm-package"]' '')
-verify=$(get .sync.verify true)
-suffix=$(get .release.suffix patched)
-build=$(get .release.build true)
-version-file=$(get '.release["version-file"]' package.json)
+npm-package=$npm_package
+verify=$verify
+suffix=$suffix
+build=$build
+version-file=$version_file
 stamp=$(json .release.stamp '{}')
 assets=$(json .release.assets '[]')
 commit=$(json .release.commit '[]')
