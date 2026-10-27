@@ -3,8 +3,8 @@
 Shared machinery for keeping GitHub forks of open-source projects in sync, and a Claude Code
 skill that drives it.
 
-A fork made with this kit has two kinds of branch: a mirror that always equals upstream, and a
-trunk that holds upstream plus our patches. Changes for upstream branch from the mirror, so
+A fork made with this kit has a trunk that holds upstream plus our patches, without
+upstream's CI. Changes for upstream branch from upstream's default branch, so
 their PRs stay clean. Changes that stay in the fork branch from the trunk. A scheduled workflow
 merges each upstream release into the trunk, and a release workflow publishes the fork's own
 versioned releases.
@@ -61,7 +61,8 @@ it when it works.
    - Resource owner: your account
    - Expiration: the longest that the form offers
    - Repository access: All repositories
-   - Repository permissions: Contents, Workflows and Secrets set to read and write. Nothing else.
+   - Repository permissions: Contents, Workflows, Secrets and Environments set to read and
+     write. Nothing else.
 3. Store it in your copy of the kit. Paste the token at the prompt, not on the command line,
    so that it stays out of your shell history:
 
@@ -96,7 +97,7 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | `kit` | Major version of the kit workflows that the fork calls, for example `v1` |
 | `kit-repo` | The kit repository, for example `codedpalette/fork-kit` |
 | `upstream` | `owner/name` of the upstream repository |
-| `mirror` | Upstream's default branch, mirrored as is |
+| `mirror` | Upstream's default branch. The fork keeps no copy of it. |
 | `trunk` | The fork's default branch: upstream plus the fork's patches |
 | `node` | Node version for verify and build |
 | `sync.source` | How upstream marks a release: `release`, `tag`, `npm` or `tip`. With `tip`, sync merges the upstream branch and nothing releases automatically. |
@@ -128,6 +129,13 @@ The forks call the workflows at `@v1`, a tag that moves.
 
 ## Security rules for the workflows
 
+- Upstream's own GitHub workflows never run with the fork's secrets. GitHub runs the workflow
+  files of the default branch and of every pushed commit, so the trunk holds only the fork's
+  `fork-*` workflows: `bin/merge-upstream` strips upstream's `.github/workflows` and
+  `.github/actions` from every merge, `bin/strip-upstream-ci` does the same for `sync/<ref>`
+  branches, and upstream's default branch is never pushed to the fork.
+- `SYNC_TOKEN` lives in each fork's `fork-sync` environment, which only the trunk can use, so
+  a workflow on any other branch cannot read it.
 - `SYNC_TOKEN` is present only in jobs that run `git` and `gh`. The sync's `merge` job runs
   upstream's install and tests without it, and a separate `push` job holds it. A compromised
   upstream dependency therefore has no token to steal.

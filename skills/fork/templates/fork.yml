@@ -4,7 +4,7 @@ schema: 1
 kit: v1
 kit-repo: {{kit_repo}}
 upstream: {{upstream}}            # owner/name
-mirror: {{mirror}}                # upstream's default branch, mirrored as is
+mirror: {{mirror}}                # upstream's default branch (not kept in the fork)
 trunk: {{trunk}}                  # our default branch: upstream plus our patches
 node: {{node}}                    # setup-node version for verify and build
 sync:

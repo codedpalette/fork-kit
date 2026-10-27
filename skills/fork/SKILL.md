@@ -9,7 +9,7 @@ Two kinds of fork exist:
 
 - **One-off**: fork, fix, send one PR upstream. No workflows, no trunk, no secrets.
 - **Persistent**: a fork that carries its own patches and is consumed from the fork. It has a
-  mirror branch, a trunk, `.github/fork.yml`, and two caller workflows that run the shared
+  trunk, `.github/fork.yml`, and two caller workflows that run the shared
   workflows of the kit repository (`fork-kit`).
 
 ## Rules for every fork
@@ -26,9 +26,15 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    `git checkout --ours/--theirs`. Stop and hand the conflicted files to the user.
 4. **Never commit a version, name or id change to the trunk.** The release workflow stamps
    those at build time, so upstream's version bumps never conflict with ours.
-5. **Branch from the right base.** Work that can go upstream: `feat/<name>` from the freshly
-   synced mirror. Fork-only work: `fork/<name>` from the trunk. Never cut `feat/*` from the
+5. **Branch from the right base.** Work that can go upstream: `feat/<name>` from freshly
+   fetched `upstream/<mirror>`. Fork-only work: `fork/<name>` from the trunk. Never cut `feat/*` from the
    trunk, because the upstream PR then carries every fork patch.
+6. **Keep upstream's CI off the trunk.** GitHub runs the workflow files of the default
+   branch, and of every pushed commit, in the fork. The trunk therefore holds only the fork's
+   own `fork-*` workflows: merge upstream with the kit's `bin/merge-upstream`, which strips
+   the rest. Never push upstream's default branch to the fork. A `feat/*` branch has to be
+   pushed for its upstream PR, and upstream's workflows then run on it, but they cannot read
+   `SYNC_TOKEN`: it lives in the `fork-sync` environment, which only the trunk can use.
 
 ## Start of work in an existing fork
 

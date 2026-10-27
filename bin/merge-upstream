@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+#
+# Merge an upstream commit into the trunk (the current branch) and strip
+# upstream's CI from the result. Prints one word: merged, current or conflict.
+#
+#   merge-upstream <upstream sha> <commit message>
+#
+# The trunk keeps only the fork's own workflows: the .github/workflows/fork-*
+# files it had before the merge. Everything else under .github/workflows and
+# .github/actions is upstream's and is removed, including files upstream adds
+# with a fork-* name. GitHub runs workflow files from the pushed commit and
+# from the default branch, so upstream's workflows never run in the fork, and
+# never see its secrets.
+#
+# A conflict only in files that get stripped anyway is resolved by removing
+# them. Any other conflict aborts the merge and leaves the trunk as it was.
+# The same inputs always give the same tree, so the job that pushes can
+# repeat the merge and compare it with the tree that was verified.
+
+set -euo pipefail
+
+[ $# -eq 2 ] || { echo "usage: ${0##*/} <upstream sha> <commit message>" >&2; exit 2; }
+sha="$1" message="$2"
+
+if git merge-base --is-ancestor "$sha" HEAD; then
+    echo current
+    exit 0
+fi
+
+ours="$(git ls-files -- '.github/workflows/fork-*')"
+is_ours() { [ -n "$ours" ] && grep -Fxq -- "$1" <<<"$ours"; }
+is_ci() { case "$1" in .github/workflows/* | .github/actions/*) return 0 ;; esac; return 1; }
+
+if ! git merge -q --no-ff --no-commit "$sha" >/dev/null 2>&1; then
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        if ! is_ci "$path" || is_ours "$path"; then
+            git merge --abort
+            echo conflict
+            exit 0
+        fi
+    done < <(git diff --name-only --diff-filter=U)
+fi
+
+# Remove upstream's CI, staged or conflicted, and keep the fork's own files.
+strip=()
+while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    is_ours "$path" || strip+=("$path")
+done < <(git ls-files -- .github/workflows .github/actions | sort -u)
+if [ "${#strip[@]}" -gt 0 ]; then
+    git rm -q -r --cached --ignore-unmatch -- "${strip[@]}"
+    rm -rf -- "${strip[@]}"
+fi
+
+git commit -q --no-verify -m "$message"
+echo merged

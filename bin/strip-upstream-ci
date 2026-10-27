@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# Remove every file under .github/workflows and .github/actions from the
+# current commit, in a new commit on top. Used on sync/<ref> branches, which
+# point at upstream's code: with the CI files gone, pushing the branch runs
+# none of upstream's workflows in the fork.
+#
+#   strip-upstream-ci <commit message>
+#
+# Makes no commit when there is nothing to remove.
+
+set -euo pipefail
+
+[ $# -eq 1 ] || { echo "usage: ${0##*/} <commit message>" >&2; exit 2; }
+
+files=()
+while IFS= read -r path; do
+    [ -n "$path" ] && files+=("$path")
+done < <(git ls-files -- .github/workflows .github/actions)
+
+[ "${#files[@]}" -gt 0 ] || exit 0
+git rm -q -r -- "${files[@]}"
+git commit -q --no-verify -m "$1"

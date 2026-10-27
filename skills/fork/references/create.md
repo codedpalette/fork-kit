@@ -63,7 +63,6 @@ Then ask the open questions, each with its proposed default:
 | Release suffix | `patched` |
 | Verify command | From `package.json` scripts, for example `npm ci && npm test && npm run build` |
 | Node version | From `.nvmrc`, `.node-version` or `engines`, else the current LTS |
-| Upstream workflows to disable | List them with `gh workflow list --all -R <fork>`. Propose the ones that publish, deploy, open PRs or comment. |
 
 ### 2. Fork and set up the branches
 
@@ -75,13 +74,19 @@ git switch -c <trunk> <release ref, or upstream/<mirror> for the tip>
 git push -u origin <trunk>
 gh repo edit --default-branch <trunk>
 git remote set-head origin --auto
+git push origin --delete <mirror>
 ```
 
-The mirror is the upstream default branch name, and it already exists in the fork.
+`<mirror>` is upstream's default branch, the `mirror` key of `fork.yml`. The fork does not
+keep a copy of it, because a push of upstream's branch runs upstream's workflows in the fork.
+`feat/*` branches start from `upstream/<mirror>` instead. New forks have Actions turned off,
+so nothing runs before step 4.
 
 ### 3. Add the tooling as a setup PR
 
-1. Cut `setup/fork` from the trunk.
+1. Cut `setup/fork` from the trunk, and remove upstream's CI from it:
+   `git rm -r -q --ignore-unmatch .github/workflows .github/actions`. Upstream's workflows
+   must never be on the trunk, because GitHub runs them with the fork's secrets.
 2. Render the templates from `templates/` into the fork. Fill in every `{{...}}` value. For
    the `tip` source, remove each line that ends in `# tip:remove`. For other sources, remove
    only the marker comments:
@@ -94,20 +99,28 @@ The mirror is the upstream default branch name, and it already exists in the for
 
 ### 4. Set up the GitHub side
 
+Do this only after the user merged the setup PR, so that the trunk has no upstream CI when
+Actions turns on.
+
 ```bash
+gh api -X PUT repos/<owner>/<name>/environments/fork-sync \
+  --input - <<<'{"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
+gh api -X POST repos/<owner>/<name>/environments/fork-sync/deployment-branch-policies \
+  -f name=<trunk> -f type=branch
 gh api -X PUT repos/<owner>/<name>/actions/permissions -F enabled=true -f allowed_actions=all
 gh api -X PUT repos/<owner>/<name>/actions/permissions/workflow \
   -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
-gh workflow disable <workflow> -R <owner>/<name>      # once per approved upstream workflow
 gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
 ```
 
-The second command lets the sync workflow open its conflict PRs. Make sure that the secret arrived: `gh secret list -R <owner>/<name>` lists `SYNC_TOKEN`.
+The first two commands create the `fork-sync` environment, which only the trunk can use. The
+token lives there, so no workflow on another branch can read it. The fourth command lets the
+sync workflow open its conflict PRs. Make sure that the secret arrived:
+`gh secret list -R <owner>/<name> --env fork-sync` lists `SYNC_TOKEN`.
 
 ### 5. Finish
 
-Tell the user to merge the setup PR. After the merge, dispatch the first sync and report the
-result:
+Dispatch the first sync and report the result:
 
 ```bash
 gh workflow run fork-sync.yml -R <owner>/<name>
@@ -123,7 +136,10 @@ names that the fork already uses.
 2. Ask only what the existing setup does not answer. Run the release detection above. For a
    project without `package.json`, give the Node-only warning above.
 3. Render the templates on a `setup/fork` branch from the trunk. In the same PR, delete the
-   fork's old sync and release workflows that the callers replace.
-4. Do step 4 of the persistent fork. The distribute workflow overwrites an old `SYNC_TOKEN`.
+   fork's old sync and release workflows that the callers replace, and remove upstream's CI:
+   every file under `.github/workflows` and `.github/actions` that is not a `fork-*` file.
+4. After the user merges the PR, delete the fork's copy of upstream's default branch
+   (`git push origin --delete <mirror>`), then do step 4 of the persistent fork. The
+   distribute workflow moves an old repository-level `SYNC_TOKEN` into the environment.
 5. Disable the upstream push URL and run `git remote set-head origin --auto`.
 6. After the user merges the PR, dispatch one sync and one release, and report both.
