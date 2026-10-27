@@ -14,7 +14,10 @@ name: Release
 #   build    runs upstream's code. Read-only permissions, no secrets, no
 #            github.token, and every checkout sets persist-credentials: false.
 #            It hands the built files over as one tar artifact.
-#   publish  can write tags and releases. It runs only git, gh, tar and the
+#   publish  can write tags and releases, with SYNC_TOKEN from the fork-sync
+#            environment, which only the trunk can use. The fork's rulesets let
+#            only admins (the token's owner) create tags, so a workflow's own
+#            GITHUB_TOKEN can never publish a release. It runs only git, gh, tar and the
 #            kit's own scripts on the files from the artifact: no npm, node or
 #            other interpreter, no eval or sh -c, no action except checkout and
 #            download-artifact, and never the fork's verify or build command.
@@ -27,7 +30,12 @@ name: Release
 # only in the released files, so upstream's version bumps never conflict.
 
 on:
+  # The caller passes SYNC_TOKEN by name; its value comes from the fork-sync
+  # environment of the publish job. See sync.yml for why.
   workflow_call:
+    secrets:
+      SYNC_TOKEN:
+        required: false
     inputs:
       version:
         description: Version to publish, instead of the computed one
@@ -171,11 +179,21 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    environment: fork-sync
     permissions:
-      contents: write
+      contents: read
     outputs:
       tag: ${{ needs.build.outputs.version }}
     steps:
+      - name: Check for the token
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::SYNC_TOKEN is not in this fork's fork-sync environment, or the caller does not pass it."
+            exit 1
+          fi
+
       # No credentials in git: the token is handed to the one push that
       # needs it, so nothing that reads .git/config can find it.
       - name: Check out the built commit
@@ -214,7 +232,7 @@ jobs:
       - name: Publish
         working-directory: fork
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GH_REPO: ${{ github.repository }}
           UPSTREAM: ${{ steps.config.outputs.upstream }}
           SUFFIX: ${{ steps.config.outputs.suffix }}
