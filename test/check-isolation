@@ -26,8 +26,10 @@
 
 set -euo pipefail
 
-[ $# -ge 3 ] && [ $# -le 4 ] ||
-    { echo "usage: ${0##*/} <workflow> <untrusted job> <trusted job> [<environment>]" >&2; exit 2; }
+if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+    echo "usage: ${0##*/} <workflow> <untrusted job> <trusted job> [<environment>]" >&2
+    exit 2
+fi
 file="$1" untrusted="$2" trusted="$3" environment="${4:-}"
 status=0
 fail() { echo "broken: $*"; status=1; }
