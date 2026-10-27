@@ -36,12 +36,15 @@ git fetch upstream --tags
 git fetch origin
 git switch <trunk>
 git merge --ff-only origin/<trunk>
-git merge --no-ff <release ref, or upstream/<mirror> for the tip>
+"$KIT_DIR/bin/merge-upstream" "$(git rev-parse '<release ref, or upstream/<mirror> for the tip>^{commit}')" "Merge upstream <ref>"
 ```
 
-On a conflict, stop. List the files with `git diff --name-only --diff-filter=U` and hand them
-to the user. Do not resolve them. On a clean merge, run the `verify` command from `fork.yml`
-before you push. Never push the mirror by hand: the workflow keeps it equal to upstream.
+`KIT_DIR` is as in `references/create.md`. The script merges and strips upstream's CI, which
+must never reach the trunk. It prints `merged`, `current` or `conflict`. On `conflict`,
+repeat the merge with `git merge --no-ff --no-commit`, list the files with
+`git diff --name-only --diff-filter=U`, and hand them to the user. Do not resolve them. On
+`merged`, run the `verify` command from `fork.yml` before you push. Never push upstream's
+branches to the fork.
 
 A push to the trunk starts the release workflow on its own, unless `sync.source` is `tip`.
 Do not also dispatch `fork-release.yml`, because a second run publishes a duplicate release.
@@ -75,15 +78,16 @@ Read-only. Report:
 
 ```bash
 git fetch upstream --tags -q && git fetch origin --tags -q
-git rev-list --count origin/<mirror>..upstream/<mirror>     # mirror lag, expected 0
 git rev-list --left-right --count upstream/<mirror>...origin/<trunk>
+git ls-tree -r --name-only origin/<trunk> -- .github/workflows .github/actions   # only fork-* files
 gh release list -R <owner>/<name> -L 1                      # last release
 gh pr list -R <owner>/<name> --search 'head:sync/'          # parked conflicts
 gh run list -R <owner>/<name> --workflow fork-sync.yml -L 3
 gh workflow view fork-sync.yml -R <owner>/<name>            # disabled after 60 quiet days?
 ```
 
-Also list the `feat/*` branches whose commits upstream already has: `git cherry -v
+If the trunk has CI files other than `fork-*`, report them as a security problem: upstream's
+workflows run in the fork with its secrets. Also list the `feat/*` branches whose commits upstream already has: `git cherry -v
 upstream/<mirror> <branch>` marks those commits with a minus sign. Report whether `kit` and `schema`
 are current. For a tip-source fork, report whether upstream started to publish releases.
 
