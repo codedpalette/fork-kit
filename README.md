@@ -20,18 +20,6 @@ versioned releases.
 Status: the skill, the hook, the version scripts and the secret distribution are in place. The reusable sync and release workflows come next. Until then, forks
 cannot call them yet.
 
-## Is it safe to keep this repository public?
-
-Yes. Nothing secret is in the files. `SYNC_TOKEN` lives in this repository's Actions secrets,
-which only collaborators with write access can use:
-
-- GitHub does not pass secrets to workflows that run for pull requests from forks of this
-  repository. No workflow here uses `pull_request_target`, the trigger that passes them.
-- `distribute-secret.yml` runs only on `workflow_dispatch`, which needs write access to this
-  repository. It refuses any target outside the owner's account.
-- Every fork calls the workflows at `@v1`. Only accounts with write access can move that tag.
-  Keep yourself the only one with write access.
-
 ## Set up on a machine
 
 The repository is a Claude Code plugin and its own marketplace. The token and the workflows
