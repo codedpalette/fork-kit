@@ -2,6 +2,8 @@ name: Fork sync
 
 on:
   schedule:
+    # Off the hour on purpose: GitHub's scheduler is busiest at minute 0,
+    # where runs start late or are dropped under load.
     - cron: '{{cron}}'
   workflow_dispatch:
 
