@@ -2,9 +2,10 @@ name: Fork sync
 
 on:
   schedule:
-    # Off the hour on purpose: GitHub's scheduler is busiest at minute 0,
-    # where runs start late or are dropped under load.
-    - cron: '{{cron}}'
+    # Daily at 06:17 UTC. The sync only merges upstream releases, which are
+    # rare, so once a day is enough. Off the hour on purpose: GitHub's
+    # scheduler is busiest at minute 0, where runs start late or are dropped.
+    - cron: '17 6 * * *'
   workflow_dispatch:
 
 # One sync at a time: a slow verify must not overlap the next scheduled run.
