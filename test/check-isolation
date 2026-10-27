@@ -3,72 +3,121 @@
 # Check that a workflow keeps its secrets and write access away from
 # upstream's code. The header comments of sync.yml and release.yml explain why.
 #
-#   check-isolation <workflow> <untrusted job> <trusted job>
+#   check-isolation <workflow> <untrusted job> <trusted job> [<environment>]
 #
-# The untrusted job runs upstream's code: no secrets, read-only permissions,
-# no credentials left in git. The trusted job holds the secrets or write
-# access: it runs only git, gh, tar and the kit's scripts. No other job may
-# reference a secret. Exits 1 and names every broken rule.
+# An allowlist: whatever is not explicitly allowed fails.
+#
+# Untrusted job (runs upstream's code):
+#   - no reference to secrets in any form
+#   - permissions: a map of read or none, nothing else
+#   - every actions/checkout sets persist-credentials: false
+#   - github.token only in steps before the first step that runs the fork's
+#     verify or build command (later steps can be tampered with by it)
+# Trusted job (holds a token or write access):
+#   - runs in <environment>, when one is given
+#   - no container, services, job-level uses, or step-level shell
+#   - actions: only actions/checkout and actions/download-artifact
+#   - run scripts: no package manager or interpreter, no eval, source or
+#     sh -c, no heredoc fed to a command that runs it, and the fork's
+#     verify or build command only as printed text
+# Every other job: no reference to secrets.
+#
+# Exits 1 and names every broken rule.
 
 set -euo pipefail
 
-[ $# -eq 3 ] || { echo "usage: ${0##*/} <workflow> <untrusted job> <trusted job>" >&2; exit 2; }
-file="$1" untrusted="$2" trusted="$3"
+[ $# -ge 3 ] && [ $# -le 4 ] ||
+    { echo "usage: ${0##*/} <workflow> <untrusted job> <trusted job> [<environment>]" >&2; exit 2; }
+file="$1" untrusted="$2" trusted="$3" environment="${4:-}"
 status=0
 fail() { echo "broken: $*"; status=1; }
+
+job_yaml() { yq ".jobs.$1" "$file"; }
+has() { [ "$(yq ".jobs.$1 | has(\"$2\")" "$file")" = true ]; }
 
 for job in "$untrusted" "$trusted"; do
     [ "$(yq ".jobs | has(\"$job\")" "$file")" = true ] || fail "job '$job' is missing."
 done
 
-# Run scripts of a job with heredoc bodies removed: their text is printed, not run.
-scripts() {  # <job>
-    yq -r ".jobs.$1.steps[].run // \"\"" "$file" |
-        awk '
-            skip && $0 ~ "^[[:space:]]*" end "$" { skip = 0; next }
-            skip { next }
-            /^[[:space:]]*#/ { next }
-            match($0, /<<-?[[:space:]]*'"'"'?[A-Za-z_]+'"'"'?/) {
-                end = substr($0, RSTART, RLENGTH); gsub(/[^A-Za-z_]/, "", end)
-                skip = 1
-            }
-            { print }'
-}
-
-# 1. Only the trusted job may reference a secret.
+# 1. Secrets: only the trusted job may name them, in any syntax.
 for job in $(yq -r '.jobs | keys | .[]' "$file"); do
     [ "$job" = "$trusted" ] && continue
-    names="$(yq ".jobs.$job" "$file" | grep -o 'secrets\.[A-Za-z0-9_]*' | sort -u | tr '\n' ' ' || true)"
-    [ -z "$names" ] || fail "job '$job' references $names. Only the '$trusted' job may hold secrets."
-
+    found="$(job_yaml "$job" | grep -Eo '(^|[^A-Za-z_])secrets([^A-Za-z_][^ }]*)?' | sed 's/^[^s]*//' | sort -u | tr '\n' ' ' || true)"
+    [ -z "$found" ] || fail "job '$job' references $found. Only the '$trusted' job may hold secrets."
 done
 
-# 2. The untrusted job gets read access only, and no credentials stay in git.
-checkouts="$(yq -r ".jobs.$untrusted.steps[] | select(.uses // \"\" | test(\"^actions/checkout@\")) | .with[\"persist-credentials\"] | tostring" "$file")"
-while read -r value; do
-    [ "$value" = false ] || fail "a checkout in the '$untrusted' job lacks persist-credentials: false."
-done <<<"$checkouts"
-if yq -r ".jobs.$untrusted.permissions // {} | to_entries[] | .value" "$file" | grep -Eqv '^(read|none)$'; then
+# 2. The untrusted job: read-only, no credentials left in git.
+if ! has "$untrusted" permissions || [ "$(yq ".jobs.$untrusted.permissions | type" "$file")" != '!!map' ]; then
+    fail "the '$untrusted' job must set permissions as a map."
+elif yq -r ".jobs.$untrusted.permissions | to_entries[] | .value" "$file" | grep -Eqv '^(read|none)$'; then
     fail "the '$untrusted' job has write permissions. It may only read."
 fi
-if [ "$(yq ".jobs.$untrusted | has(\"permissions\")" "$file")" != true ]; then
-    fail "the '$untrusted' job does not set its permissions."
-fi
+while read -r value; do
+    [ -z "$value" ] || [ "$value" = false ] ||
+        fail "a checkout in the '$untrusted' job lacks persist-credentials: false."
+done < <(yq -r ".jobs.$untrusted.steps[] | select(.uses // \"\" | test(\"^actions/checkout@\")) | .with[\"persist-credentials\"] | tostring" "$file")
 
-# 3. The trusted job runs no code but git, gh, tar and the kit's scripts.
+# github.token is allowed only before the first step that runs upstream code.
+count="$(yq ".jobs.$untrusted.steps | length" "$file")"
+seen_code=0
+for ((i = 0; i < count; i++)); do
+    step="$(yq ".jobs.$untrusted.steps[$i]" "$file")"
+    if [ "$seen_code" = 1 ] && grep -q 'github\.token' <<<"$step"; then
+        fail "step $i of the '$untrusted' job uses github.token after upstream's code ran."
+    fi
+    if grep -Eq '\$\{?(VERIFY|BUILD)([^A-Z_]|$)' <<<"$(yq -r '.run // ""' <<<"$step")"; then
+        seen_code=1
+    fi
+done
+
+# 3. The trusted job.
+if [ -n "$environment" ] && [ "$(yq -r ".jobs.$trusted.environment // \"\"" "$file")" != "$environment" ]; then
+    fail "the '$trusted' job must run in the '$environment' environment."
+fi
+for key in container services uses; do
+    if has "$trusted" "$key"; then fail "the '$trusted' job must not set $key."; fi
+done
+if yq -e ".jobs.$trusted.steps[] | select(has(\"shell\"))" "$file" >/dev/null 2>&1; then
+    fail "a step of the '$trusted' job sets shell. Only the default shell is allowed."
+fi
 others="$(yq -r ".jobs.$trusted.steps[] | select(has(\"uses\")) | .uses" "$file" |
     grep -Ev '^actions/(checkout|download-artifact)@' || true)"
 [ -z "$others" ] || fail "the '$trusted' job uses other actions: $others"
 
-trusted_scripts="$(scripts "$trusted")"
-if grep -En '(^|[^A-Za-z_-])(npm|npx|yarn|pnpm|bun|node|make|pip3?|python3?)([^A-Za-z_-]|$)' <<<"$trusted_scripts"; then
+# Run scripts, with the bodies of heredocs that are only printed removed. A
+# heredoc fed to anything that runs code is itself a failure. "<<<" is a
+# here-string, not a heredoc, and hides nothing.
+runner='(^|[^A-Za-z_-])((ba|z|da|k)?sh|eval|source|python3?|node|perl|ruby|php|deno|bun|xargs)([^A-Za-z_-]|$)'
+scripts="$(yq -r ".jobs.$trusted.steps[].run // \"\"" "$file" |
+    awk -v runner="$runner" '
+        skip && $0 ~ ("^[[:space:]]*" end "[[:space:]]*$") { skip = 0; next }
+        skip { next }
+        /^[[:space:]]*#/ { next }
+        match($0, /(^|[^<])<<-?[[:space:]]*["'"'"']?[A-Za-z_]+["'"'"']?/) {
+            if ($0 ~ runner) { print "HEREDOC-RUN: " $0; next }
+            end = substr($0, RSTART, RLENGTH)
+            sub(/^[^<]*<<-?[[:space:]]*/, "", end)
+            gsub(/["'"'"']/, "", end)
+            skip = 1
+        }
+        { print }')"
+
+if grep -n '^HEREDOC-RUN: ' <<<"$scripts"; then
+    fail "the '$trusted' job feeds a heredoc to a command that runs it."
+fi
+if grep -En '(^|[^A-Za-z_-])(npm|npx|yarn|pnpm|bun|node|deno|make|pip3?|python3?|perl|ruby|php)([^A-Za-z_-]|$)' <<<"$scripts"; then
     fail "the '$trusted' job runs a package manager or interpreter."
 fi
-if grep -En '(^|[;&|(])\s*(eval|source|\.)\s|(^|[^A-Za-z_-])(ba|z|da)?sh\s.*-[A-Za-z]*c([^A-Za-z]|$)' <<<"$trusted_scripts"; then
+if grep -En '(^|[;&|(])\s*(eval|source|\.)\s|(^|[^A-Za-z_-])(ba|z|da|k)?sh\s.*-[A-Za-z]*c([^A-Za-z]|$)' <<<"$scripts"; then
     fail "the '$trusted' job evaluates code."
 fi
-if grep -En '(^\s*|[;&|]\s*|\$\(\s*)"?\$\{?(VERIFY|BUILD)\b' <<<"$trusted_scripts"; then
-    fail "the '$trusted' job runs the fork's verify or build command."
+# The fork's commands may appear only as printf arguments, which print them,
+# or in a [ "$VERIFY" = value ] comparison.
+# shellcheck disable=SC2016 # the patterns match literal $VERIFY text
+if grep -E '\$\{?(VERIFY|BUILD)([^A-Z_]|$)' <<<"$scripts" |
+    grep -Ev '^\s*[a-z_]+="\$\(printf .*"\$(VERIFY|BUILD)"\)"$' |
+    grep -Ev '^\s*(if|elif)\s+\[ "\$(VERIFY|BUILD)" !?= [A-Za-z0-9_-]+ \]; then$'; then
+    fail "the '$trusted' job uses the fork's verify or build command outside printed text."
 fi
 
 exit "$status"
