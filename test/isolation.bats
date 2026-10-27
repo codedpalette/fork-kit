@@ -18,7 +18,7 @@ setup() { cp "$SYNC" "$BATS_TEST_TMPDIR/sync.yml"; COPY="$BATS_TEST_TMPDIR/sync.
 }
 
 @test "release.yml keeps write access away from upstream code" {
-    run "$CHECK" "$RELEASE" build publish
+    run "$CHECK" "$RELEASE" build publish fork-sync
     echo "$output"
     [ "$status" -eq 0 ]
 }
