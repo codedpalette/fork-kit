@@ -43,10 +43,11 @@ name: Sync upstream
 # stays green: the open PR is the reminder, not a daily failure email.
 
 on:
+  # No secrets come from the caller. The push job reads SYNC_TOKEN from the
+  # fork-sync environment, which the caller cannot see: a caller job declares
+  # no environment, and an inherited repository secret would be readable by
+  # every workflow in the fork.
   workflow_call:
-    secrets:
-      SYNC_TOKEN:
-        required: true
     outputs:
       merged:
         description: '"true" when upstream was merged into the trunk and pushed'
@@ -177,6 +178,15 @@ jobs:
     outputs:
       merged: ${{ steps.push.outputs.merged }}
     steps:
+      - name: Check for the token
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [ -z "$SYNC_TOKEN" ]; then
+            echo "::error::SYNC_TOKEN is not in this fork's fork-sync environment. Run the kit's distribute-secret.yml for this fork."
+            exit 1
+          fi
+
       - name: Check out the trunk
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

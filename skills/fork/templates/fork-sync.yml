@@ -19,7 +19,6 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
-    secrets: inherit
 
   release:                                                      # tip:remove
     needs: sync                                                 # tip:remove
