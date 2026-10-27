@@ -107,6 +107,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: ${{ steps.config.outputs.upstream }}
+          MIRROR: ${{ steps.config.outputs.mirror }}
           SOURCE: ${{ steps.config.outputs.source }}
           NPM_PACKAGE: ${{ steps.config.outputs.npm-package }}
         run: |
