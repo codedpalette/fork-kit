@@ -43,11 +43,15 @@ name: Sync upstream
 # stays green: the open PR is the reminder, not a daily failure email.
 
 on:
-  # No secrets come from the caller. The push job reads SYNC_TOKEN from the
-  # fork-sync environment, which the caller cannot see: a caller job declares
-  # no environment, and an inherited repository secret would be readable by
-  # every workflow in the fork.
+  # The caller passes no secrets. SYNC_TOKEN is declared here only so that
+  # the push job, which runs in the fork-sync environment, can read the
+  # environment's value: a reusable workflow's secrets context holds only the
+  # names it declares. A repository-level secret would be readable by every
+  # workflow in the fork, so the token is never one.
   workflow_call:
+    secrets:
+      SYNC_TOKEN:
+        required: false
     outputs:
       merged:
         description: '"true" when upstream was merged into the trunk and pushed'
