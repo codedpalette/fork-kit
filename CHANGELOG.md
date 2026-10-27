@@ -15,6 +15,8 @@ workflow was able to land on the trunk and read `SYNC_TOKEN` from the `fork-sync
 - The sync's push job keeps no credentials in `.git/config`. Each push gets the token from a
   credential helper.
 - A first release lists the fork's patches on top of the upstream base.
+- If a release name belonged to a deleted immutable release, the publish job tries the next
+  N. GitHub locks such a name for good.
 
 No change in the forks is needed. Limit the token to the forks: "Only select repositories",
 with each fork, not the kit.

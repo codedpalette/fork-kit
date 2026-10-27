@@ -282,29 +282,14 @@ jobs:
             '($s | keys) + $a + $c | unique | .[]')
           ../kit/bin/check-release-files ../out "${listed[@]}"
 
-          # Commit mode: the built files go into a commit that only the tag
-          # points at, for installs that read the git tree (npm git URLs).
-          # Only the listed paths are copied into the checkout.
-          target="$SHA"
-          if [ "$(jq length <<<"$COMMIT")" -gt 0 ]; then
-            mapfile -t paths < <(jq -nr --argjson s "$STAMP" --argjson c "$COMMIT" '($s | keys) + $c | unique | .[]')
-            for path in "${paths[@]}"; do
-              [ -e "../out/$path" ] || continue
-              rm -rf -- "$path"
-              mkdir -p -- "$(dirname -- "$path")"
-              cp -R -- "../out/$path" "$path"
-              git add -f -- "$path"
-            done
-            git commit -q -m "chore(release): $VERSION [skip ci]"
-            git tag -a "$VERSION" -m "Release $VERSION"
-            # The token reaches git through a credential helper that reads it
-            # from the environment, so it is never stored or put on a command line.
+          # The token reaches git through a credential helper that reads it
+          # from the environment, so it is never stored or put on a command line.
+          push() {
             # shellcheck disable=SC2016 # git expands $GH_TOKEN when it runs the helper
             git -c credential.helper= \
               -c credential.helper='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' \
-              push -q "https://github.com/$GH_REPO.git" "refs/tags/$VERSION"
-            target="$(git rev-parse HEAD)"
-          fi
+              push -q "https://github.com/$GH_REPO.git" "$@"
+          }
 
           # Notes. A release on a new upstream base links upstream's own
           # changelog. The fork's commits since the previous fork release are
@@ -350,6 +335,61 @@ jobs:
 
           assets=()
           while read -r file; do assets+=("../out/$file"); done < <(jq -r '.[]' <<<"$ASSETS")
-          gh release create "$VERSION" --target "$target" --title "$VERSION" \
-            --notes-file ../notes.md "${assets[@]}"
-          echo "::notice::Published $VERSION."
+          mapfile -t stamped < <(jq -r 'keys[]' <<<"$STAMP")
+          built="$VERSION"
+
+          # A deleted immutable release locks its tag name for good, and only
+          # creating the release shows that. Then the next N is tried: the
+          # stamp files are stamped again, and the run stops if another built
+          # file holds the version, because only a new build can change it.
+          for attempt in 1 2 3 4 5; do
+            # Commit mode: the built files go into a commit that only the tag
+            # points at, for installs that read the git tree (npm git URLs).
+            # Only the listed paths are copied into the checkout.
+            target="$SHA"
+            if [ "$(jq length <<<"$COMMIT")" -gt 0 ]; then
+              mapfile -t paths < <(jq -nr --argjson s "$STAMP" --argjson c "$COMMIT" '($s | keys) + $c | unique | .[]')
+              for path in "${paths[@]}"; do
+                [ -e "../out/$path" ] || continue
+                rm -rf -- "$path"
+                mkdir -p -- "$(dirname -- "$path")"
+                cp -R -- "../out/$path" "$path"
+                git add -f -- "$path"
+              done
+              git commit -q -m "chore(release): $VERSION [skip ci]"
+              git tag -a "$VERSION" -m "Release $VERSION"
+              push "refs/tags/$VERSION"
+              target="$(git rev-parse HEAD)"
+            fi
+
+            status=0
+            output="$(gh release create "$VERSION" --target "$target" --title "$VERSION" \
+              --notes-file ../notes.md "${assets[@]}" 2>&1)" || status=$?
+            echo "$output"
+            if [ "$status" = 0 ]; then
+              echo "::notice::Published $VERSION."
+              exit 0
+            fi
+            if ! grep -q 'used by an immutable release' <<<"$output" || [ "$attempt" = 5 ] ||
+              ! [[ "$VERSION" =~ \.[0-9]+$ ]]; then
+              echo "::error::Could not create the release $VERSION."
+              exit 1
+            fi
+
+            echo "::warning::The name $VERSION belonged to a deleted immutable release. Trying the next one."
+            if [ "$target" != "$SHA" ]; then
+              push --delete "refs/tags/$VERSION"
+              git tag -d "$VERSION" >/dev/null
+              git reset -q --hard "$SHA"
+            fi
+            VERSION="${VERSION%.*}.$((${VERSION##*.} + 1))"
+            for file in "${stamped[@]}"; do
+              filter="$(jq -r --arg file "$file" '.[$file]' <<<"$STAMP")"
+              jq --arg version "$VERSION" "$filter" "../out/$file" >../stamped.json
+              cat ../stamped.json >"../out/$file"
+            done
+            if grep -rlF -- "$built" ../out | grep -vxF -f <(printf '../out/%s\n' "${stamped[@]}"); then
+              echo "::error::These built files hold the version $built. Run the release again with the version $VERSION."
+              exit 1
+            fi
+          done
