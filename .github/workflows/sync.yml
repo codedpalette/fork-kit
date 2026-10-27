@@ -81,9 +81,21 @@ jobs:
       - name: Find the kit
         id: kit
         working-directory: fork
+        # The kit is checked out by a ref that only a tag or a commit can
+        # match: actions/checkout tries a branch before a tag for a bare name,
+        # so a branch named v1 in the kit repository would otherwise win.
         run: |
+          kit="$(yq -r '.kit // "v1"' .github/fork.yml)"
+          if [[ "$kit" =~ ^[0-9a-f]{40}$ ]]; then
+            ref="$kit"
+          elif [[ "$kit" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            ref="refs/tags/$kit"
+          else
+            echo "::error::fork.yml kit '$kit' must be a version tag such as v1, or a full commit SHA."
+            exit 1
+          fi
           echo "repo=$(yq -r '.["kit-repo"] // ""' .github/fork.yml)" >>"$GITHUB_OUTPUT"
-          echo "ref=$(yq -r '.kit // "v1"' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+          echo "ref=$ref" >>"$GITHUB_OUTPUT"
 
       - name: Check out the kit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -202,9 +214,21 @@ jobs:
       - name: Find the kit
         id: kit
         working-directory: fork
+        # The kit is checked out by a ref that only a tag or a commit can
+        # match: actions/checkout tries a branch before a tag for a bare name,
+        # so a branch named v1 in the kit repository would otherwise win.
         run: |
+          kit="$(yq -r '.kit // "v1"' .github/fork.yml)"
+          if [[ "$kit" =~ ^[0-9a-f]{40}$ ]]; then
+            ref="$kit"
+          elif [[ "$kit" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            ref="refs/tags/$kit"
+          else
+            echo "::error::fork.yml kit '$kit' must be a version tag such as v1, or a full commit SHA."
+            exit 1
+          fi
           echo "repo=$(yq -r '.["kit-repo"] // ""' .github/fork.yml)" >>"$GITHUB_OUTPUT"
-          echo "ref=$(yq -r '.kit // "v1"' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+          echo "ref=$ref" >>"$GITHUB_OUTPUT"
 
       - name: Check out the kit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -301,6 +325,14 @@ jobs:
           # shellcheck disable=SC2016 # the backticks are Markdown, not a command
           files="$(git diff --name-only --diff-filter=U | sed 's/.*/- `&`/')"
           git merge --abort 2>/dev/null || true
+          # Upstream changes to the fork's own files are refused even when
+          # they merge cleanly, so name them separately.
+          # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+          owned="$(git diff --name-only "$(git merge-base HEAD "$head")" "$head" -- \
+            .github/fork.yml FORK.md '.github/workflows/fork-*' | sed 's/.*/- `&`/')"
+          if [ -n "$owned" ]; then
+            files="$(printf '%s\n\nUpstream changes these files, which belong to this fork. Keep the fork'"'"'s version of each:\n\n%s' "${files:-- (none)}" "$owned")"
+          fi
 
           if [ "$SOURCE" = tip ]; then
             release_note="This fork follows the upstream tip, so nothing releases on its own. To release, run \`gh workflow run fork-release.yml\`."

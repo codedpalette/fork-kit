@@ -70,3 +70,11 @@ value() { grep "^$1=" <<<"$output" | cut -d= -f2-; }
     [ "$status" -eq 1 ]
     [[ "$output" == *trunk* ]]
 }
+
+@test "a multi-line value fails, so it cannot add outputs" {
+    yq -i '.sync.verify = "npm test\nkit-repo=evil/kit"' .github/fork.yml
+    run "$BIN/fork-config" .github/fork.yml
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"sync.verify"* ]]
+}
+

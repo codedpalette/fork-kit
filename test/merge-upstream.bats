@@ -97,3 +97,41 @@ ci_files() { git ls-tree -r --name-only HEAD -- .github/workflows .github/action
     [ "$status" -eq 0 ]
     [ "$(git rev-parse HEAD)" = "$before" ]
 }
+
+@test "upstream cannot take over a fork file by copying it first, then changing it" {
+    mkdir -p .github && echo "kit: v1" >.github/fork.yml
+    git add -A && git commit -q -m "fork: config"
+    # Step 1: upstream adds a byte-identical copy. The merge is clean.
+    upstream_commit "upstream: copy" "mkdir -p .github; echo 'kit: v1' >.github/fork.yml"
+    run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 1"
+    [ "$output" = merged ]
+    before="$(git rev-parse HEAD)"
+    # Step 2: upstream changes its copy. Git would take that change cleanly.
+    upstream_commit "upstream: change" "echo 'kit-repo: evil/kit' >>.github/fork.yml"
+    run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 2"
+    [ "$output" = conflict ]
+    [ "$(git rev-parse HEAD)" = "$before" ]
+    [ -z "$(git status --porcelain)" ]
+}
+
+@test "the same two-step takeover is refused for FORK.md and fork workflows" {
+    echo "# Fork" >FORK.md
+    git add -A && git commit -q -m "fork: docs"
+    upstream_commit "upstream: copy" "echo '# Fork' >FORK.md; echo 'fork sync' >.github/workflows/fork-sync.yml"
+    run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 1"
+    [ "$output" = merged ]
+    for change in "echo evil >>FORK.md" "echo evil >>.github/workflows/fork-sync.yml"; do
+        upstream_commit "upstream: change" "$change"
+        run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream 2"
+        [ "$output" = conflict ]
+    done
+}
+
+@test "an upstream file identical to the fork's own merges without change" {
+    mkdir -p .github && echo "kit: v1" >.github/fork.yml
+    git add -A && git commit -q -m "fork: config"
+    upstream_commit "upstream: same file" "mkdir -p .github; echo 'kit: v1' >.github/fork.yml"
+    run "$BIN/merge-upstream" "$UPSTREAM_SHA" "Merge upstream s"
+    [ "$output" = merged ]
+}
+

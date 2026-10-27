@@ -14,6 +14,9 @@
 #
 # A conflict only in files that get stripped anyway is resolved by removing
 # them. Any other conflict aborts the merge and leaves the trunk as it was.
+# So does any upstream change to the fork's own files (.github/fork.yml,
+# FORK.md, .github/workflows/fork-*): upstream could otherwise add an exact
+# copy of one, which merges cleanly, and change it in a later release.
 # The same inputs always give the same tree, so the job that pushes can
 # repeat the merge and compare it with the tree that was verified.
 
@@ -51,6 +54,12 @@ done < <(git ls-files -- .github/workflows .github/actions | sort -u)
 if [ "${#strip[@]}" -gt 0 ]; then
     git rm -q -r --cached --ignore-unmatch -- "${strip[@]}"
     rm -rf -- "${strip[@]}"
+fi
+
+if [ -n "$(git diff --cached --name-only HEAD -- .github/fork.yml FORK.md '.github/workflows/fork-*')" ]; then
+    git merge --abort
+    echo conflict
+    exit 0
 fi
 
 git commit -q --no-verify -m "$message"

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+#
+# Check the files a release build produced, before the publish job uses them.
+#
+#   check-release-files <dir> <allowed path>...
+#
+# The build runs upstream's code, so its output is untrusted. <dir> holds that
+# output, unpacked into an empty directory outside any git checkout. Every
+# entry must be a regular file or directory, at or under one of the allowed
+# paths (the fork.yml stamp, assets and commit lists), and outside any .git
+# directory. Symlinks and hard links are refused, because publishing or
+# committing one could carry a file from elsewhere on the runner.
+#
+# Exits 1 and names every entry that breaks a rule.
+
+set -euo pipefail
+
+[ $# -ge 2 ] || { echo "usage: ${0##*/} <dir> <allowed path>..." >&2; exit 2; }
+dir="$1"; shift
+status=0
+fail() { echo "refused: $*"; status=1; }
+
+for allowed in "$@"; do
+    case "/$allowed/" in
+        //* | */../* | */./* | *//*) fail "listed path '$allowed' is not a plain relative path" ;;
+    esac
+done
+[ "$status" -eq 0 ] || exit 1
+
+allowed_path() {  # <relative path>
+    local allowed
+    for allowed in "${ALLOWED[@]}"; do
+        [ "$1" = "$allowed" ] && return 0
+        case "$1" in "$allowed"/*) return 0 ;; esac
+    done
+    return 1
+}
+ALLOWED=("$@")
+
+while IFS= read -r -d '' entry; do
+    path="${entry#"$dir"/}"
+    [ "$path" = "$entry" ] && continue
+    case "/$path/" in
+        */.git/*) fail "$path is inside a .git directory"; continue ;;
+    esac
+    if [ -L "$entry" ]; then
+        fail "$path is a symlink"
+    elif [ -d "$entry" ]; then
+        continue
+    elif [ ! -f "$entry" ]; then
+        fail "$path is not a regular file"
+    elif [ "$(stat -c %h "$entry" 2>/dev/null || stat -f %l "$entry")" -gt 1 ]; then
+        fail "$path is a hard link"
+    elif ! allowed_path "$path"; then
+        fail "$path is not in the stamp, assets or commit lists"
+    fi
+done < <(find "$dir" -mindepth 1 -print0)
+
+exit "$status"

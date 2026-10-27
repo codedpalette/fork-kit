@@ -109,12 +109,34 @@ gh api -X POST repos/<owner>/<name>/environments/fork-sync/deployment-branch-pol
 gh api -X PUT repos/<owner>/<name>/actions/permissions -F enabled=true -f allowed_actions=all
 gh api -X PUT repos/<owner>/<name>/actions/permissions/workflow \
   -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+gh api -X POST repos/<owner>/<name>/rulesets --input - <<'JSON'
+{"name": "trunk: only admins push", "target": "branch", "enforcement": "active",
+ "conditions": {"ref_name": {"include": ["refs/heads/<trunk>"], "exclude": []}},
+ "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+ "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}, {"type": "update"}]}
+JSON
+gh api -X POST repos/<owner>/<name>/rulesets --input - <<'JSON'
+{"name": "tags: only admins create, move or delete", "target": "tag", "enforcement": "active",
+ "conditions": {"ref_name": {"include": ["~ALL"], "exclude": []}},
+ "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+ "rules": [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}]}
+JSON
+gh api -X PUT repos/<owner>/<name>/immutable-releases
 gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
 ```
 
 The first two commands create the `fork-sync` environment, which only the trunk can use. The
 token lives there, so no workflow on another branch can read it. The fourth command lets the
-sync workflow open its conflict PRs. Make sure that the secret arrived:
+sync workflow open its conflict PRs.
+
+The two rulesets and immutable releases stop upstream's workflows that run on a pushed
+`feat/*` branch. Such a workflow can raise its own `GITHUB_TOKEN` to write access, but only
+admins can push to the trunk or create tags, and the token's owner is an admin. Immutable
+releases lock each published release's assets and tag. A deleted release's tag name can
+never be used again.
+
+Rulesets on a private repository need a paid GitHub plan. If the fork is private and the
+account has no such plan, tell the user that this protection is missing. Make sure that the secret arrived:
 `gh secret list -R <owner>/<name> --env fork-sync` lists `SYNC_TOKEN`.
 
 ### 5. Finish
