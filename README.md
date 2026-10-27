@@ -142,6 +142,10 @@ The forks call the workflows at `@v1`, a tag that moves.
   branches, and upstream's default branch is never pushed to the fork.
 - `SYNC_TOKEN` lives in each fork's `fork-sync` environment, which only the trunk can use, so
   a workflow on any other branch cannot read it.
+- Upstream's workflows still run on `feat/*` branches pushed for upstream PRs, and a workflow
+  can raise its own `GITHUB_TOKEN` to write access. So in each fork, rulesets let only admins
+  push to the trunk or create tags, and immutable releases lock each release's assets.
+  Releases are published with `SYNC_TOKEN`, whose owner is an admin.
 - `SYNC_TOKEN` is present only in jobs that run `git` and `gh`. The sync's `merge` job runs
   upstream's install and tests without it, and a separate `push` job holds it. A compromised
   upstream dependency therefore has no token to steal.
@@ -149,9 +153,8 @@ The forks call the workflows at `@v1`, a tag that moves.
 - Third-party actions are pinned to full commit SHAs, and Dependabot updates the pins.
 - `test/check-isolation` tests these rules on every push, and the headers of `sync.yml` and
   `release.yml` explain them to anyone who edits them.
-- Releases use the job's own `GITHUB_TOKEN`, which expires with the job and reaches only that
-  fork. Its `build` job runs upstream's build with read access only and hands the files over
-  as an artifact. A separate `publish` job holds write access and runs no upstream code,
+- The release's `build` job runs upstream's build with read access only and hands the files
+  over as an artifact. A separate `publish` job holds the token and runs no upstream code,
   because a step can plant a fake `gh` or environment variables for later steps of its job.
 
 ## Development

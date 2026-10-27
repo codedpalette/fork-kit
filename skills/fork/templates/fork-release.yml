@@ -15,6 +15,10 @@ jobs:
   release:
     uses: {{kit_repo}}/.github/workflows/release.yml@v1
     permissions:
-      contents: write
+      contents: read
+    # By name: the value comes from the fork-sync environment, in the kit's
+    # publish job, which creates the tag and the release.
+    secrets:
+      SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
     with:
       version: ${{ inputs.version || '' }}
