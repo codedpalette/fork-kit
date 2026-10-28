@@ -67,7 +67,7 @@ and the steps. Follow them with the user:
 
 ```bash
 gh workflow run fork-release.yml -R <owner>/<name>                    # computed version
-gh workflow run fork-release.yml -R <owner>/<name> -f version=<tag>   # explicit version
+gh workflow run fork-release.yml -R <owner>/<name> -f version=<base>-<suffix>.<N>   # explicit version, only for the trunk's base
 ```
 
 Fork release tags always end in `-<suffix>.<N>`. Upstream tags never have that suffix.

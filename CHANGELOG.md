@@ -3,6 +3,14 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: release versions follow the base (schema 1, unchanged)
+
+A release started by hand accepts only `<base>-<suffix>.<N>` for the trunk's own upstream
+base. Any workflow in the fork with write access to Actions can start the release workflow,
+and a made-up version such as `99.0.0` sorted above every later release.
+
+No change in the forks is needed.
+
 ## kit v1 update: no unreleased upstream code in a release (schema 1, unchanged)
 
 A release builds the trunk and labels it with the newest upstream release in it. If the trunk

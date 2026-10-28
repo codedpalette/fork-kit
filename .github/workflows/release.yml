@@ -122,8 +122,12 @@ jobs:
             exit 1
           fi
           if [ -n "$REQUESTED" ]; then
-            if ! [[ "$REQUESTED" =~ ^[A-Za-z0-9._-]+$ ]]; then
-              echo "::error::Not a valid version: $REQUESTED"
+            # Only <base>-<suffix>.<N> for the trunk's own base. Any workflow
+            # with actions: write can start this one, and a made-up version
+            # such as 99.0.0 would sort above every later release.
+            n="${REQUESTED#"$base-$SUFFIX."}"
+            if [ "$n" = "$REQUESTED" ] || ! [[ "$n" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::Not a valid version: $REQUESTED. Use $base-$SUFFIX.<N>."
               exit 1
             fi
             version="$REQUESTED"
