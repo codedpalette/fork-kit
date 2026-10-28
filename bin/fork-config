@@ -42,8 +42,9 @@ case "$source" in
 esac
 
 tag_prefix="$(get '.sync["tag-prefix"]' '')"
-[[ "$tag_prefix" =~ ^([A-Za-z0-9_][A-Za-z0-9._@/-]*)?$ ]] && [[ "$tag_prefix" != *..* ]] ||
+if ! [[ "$tag_prefix" =~ ^([A-Za-z0-9_][A-Za-z0-9._@/-]*)?$ ]] || [[ "$tag_prefix" == *..* ]]; then
     fail "sync.tag-prefix must start with a letter, digit or _, then hold only those and . _ @ / -, not '$tag_prefix'"
+fi
 
 # Assigned one by one: a failing get then stops the script (set -e).
 kit="$(get .kit v1)"
