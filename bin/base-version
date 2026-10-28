@@ -2,12 +2,15 @@
 #
 # Print the upstream version a fork release is based on.
 #
-#   base-version <source> [<version-file>] [<upstream ref>]
+#   base-version <source> [<version-file>] [<upstream ref>] [<tag prefix>]
 #
-# For release, tag and npm sources: the nearest tag reachable from HEAD that is
-# a bare version, with upstream's own prefix kept (v3.1.3, 8.6.0). Tags with a
-# `-` are prereleases or fork releases and never count. Upstream's tags must be
-# fetched into the repository first.
+# For release and tag sources: an upstream tag under refs/upstream-tags/ that
+# is <tag prefix> plus a bare version (8.6.0, v3.1.3, release-1.2.3) and is in
+# HEAD's history. It prints the version without the prefix. The
+# workflows fetch upstream's tags there, apart from the fork's own release tags,
+# so the two can never collide. Of those tags, the nearest one to HEAD wins, and
+# the higher version on a tie. A tag on an old commit can therefore never
+# become the base, however high its version.
 #
 # For the tip source: the .version field of <version-file> (default
 # package.json), because a tip-following upstream has no tags to go by. Without
@@ -19,14 +22,27 @@
 
 set -euo pipefail
 
-usage() { echo "usage: ${0##*/} <release|tag|npm|tip> [<version-file>] [<upstream ref>]" >&2; exit 2; }
+usage() { echo "usage: ${0##*/} <release|tag|tip> [<version-file>] [<upstream ref>] [<tag prefix>]" >&2; exit 2; }
 
 [ $# -ge 1 ] || usage
-source="$1" version_file="${2:-package.json}" upstream_ref="${3:-}"
+source="$1" version_file="${2:-package.json}" upstream_ref="${3:-}" prefix="${4:-}"
 
 case "$source" in
-    release | tag | npm)
-        git describe --tags --abbrev=0 --match '*[0-9]*' --exclude '*-*' HEAD 2>/dev/null || exit 3
+    release | tag)
+        best="" best_version="" best_distance=""
+        while read -r name; do
+            [[ "$name" == "$prefix"* ]] || continue
+            version="${name#"$prefix"}"
+            [[ "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+            distance="$(git rev-list --count "refs/upstream-tags/$name..HEAD")"
+            if [ -z "$best" ] || [ "$distance" -lt "$best_distance" ] ||
+                { [ "$distance" -eq "$best_distance" ] &&
+                    [ "$(printf '%s\n%s\n' "${best_version#v}" "${version#v}" | sort -V | tail -n 1)" = "${version#v}" ]; }; then
+                best="$name" best_version="$version" best_distance="$distance"
+            fi
+        done < <(git for-each-ref --merged HEAD --format='%(refname:strip=2)' refs/upstream-tags/)
+        [ -n "$best" ] || exit 3
+        printf '%s\n' "$best_version"
         ;;
     tip)
         version=""

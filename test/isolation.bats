@@ -150,3 +150,18 @@ setup() { cp "$SYNC" "$BATS_TEST_TMPDIR/sync.yml"; COPY="$BATS_TEST_TMPDIR/sync.
     [ "$(yq '[.jobs[].permissions | to_entries[] | .value] | all_c(. == "read" or . == "none")' "$check")" = true ]
     [ "$(yq '[.jobs[].steps[] | select(.uses // "" | test("^actions/checkout@")) | .with["persist-credentials"]] | all_c(. == false)' "$check")" = true ]
 }
+
+# The templates hold {{...}} placeholders, so render them before yq reads them.
+render() { sed -e 's/{{[a-z_]*}}/x/g' -e 's/[[:space:]]*# tip:remove$//' "$BATS_TEST_DIRNAME/../skills/fork/templates/$1"; }
+
+@test "a release after a sync builds the commit that the sync pushed" {
+    [ "$(render fork-sync.yml | yq '.jobs.release.with.ref')" = '${{ needs.sync.outputs.sha }}' ]
+    [ "$(yq '.on.workflow_call.outputs.sha.value' "$SYNC")" = '${{ jobs.push.outputs.sha }}' ]
+    [ "$(yq '.jobs.build.steps[0].with.ref' "$RELEASE")" = '${{ inputs.ref }}' ]
+    grep -qF 'echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"' "$SYNC"
+}
+
+@test "both release callers share one concurrency group" {
+    [ "$(render fork-release.yml | yq '.concurrency.group')" = fork-release ]
+    [ "$(render fork-sync.yml | yq '.jobs.release.concurrency.group')" = fork-release ]
+}

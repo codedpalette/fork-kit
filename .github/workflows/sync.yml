@@ -59,6 +59,9 @@ on:
       ref:
         description: The upstream release tag, or branch for the tip
         value: ${{ jobs.merge.outputs.ref }}
+      sha:
+        description: The trunk commit that the push job pushed, when merged is "true"
+        value: ${{ jobs.push.outputs.sha }}
 
 jobs:
   merge:
@@ -125,24 +128,29 @@ jobs:
           UPSTREAM: ${{ steps.config.outputs.upstream }}
           MIRROR: ${{ steps.config.outputs.mirror }}
           SOURCE: ${{ steps.config.outputs.source }}
-          NPM_PACKAGE: ${{ steps.config.outputs.npm-package }}
+          TAG_PREFIX: ${{ steps.config.outputs.tag-prefix }}
         run: |
           git remote add upstream "https://github.com/$UPSTREAM.git"
-          git fetch -q --tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+          # Upstream's tags go to refs/upstream-tags/, apart from the fork's own
+          # release tags, so the two can never collide.
+          git fetch -q --no-tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR" \
+            "+refs/tags/*:refs/upstream-tags/*"
 
           if [ "$SOURCE" = tip ]; then
             ref="$MIRROR"
             sha="$(git rev-parse "upstream/$MIRROR")"
           else
             rc=0
-            ref="$(../kit/bin/upstream-release "$UPSTREAM" "$SOURCE" "$NPM_PACKAGE")" || rc=$?
+            ref="$(../kit/bin/upstream-release "$UPSTREAM" "$SOURCE" "$TAG_PREFIX")" || rc=$?
             if [ "$rc" -eq 3 ]; then
               echo "::error::$UPSTREAM has no $SOURCE release. To follow its branch instead, set sync.source to tip in .github/fork.yml."
               exit 1
             fi
             [ "$rc" -eq 0 ] || exit "$rc"
-            git rev-parse -q --verify "$ref^{commit}" >/dev/null || git fetch -q upstream "$ref"
-            sha="$(git rev-parse "$ref^{commit}")"
+            if ! sha="$(git rev-parse -q --verify "refs/upstream-tags/$ref^{commit}")"; then
+              echo "::error::Upstream's release $ref has no tag in $UPSTREAM. Upstream deleted or renamed it."
+              exit 1
+            fi
           fi
 
           echo "ref=$ref" >>"$GITHUB_OUTPUT"
@@ -194,6 +202,7 @@ jobs:
       issues: write
     outputs:
       merged: ${{ steps.push.outputs.merged }}
+      sha: ${{ steps.push.outputs.sha }}
     steps:
       - name: Check for the token
         env:
@@ -255,7 +264,10 @@ jobs:
           MIRROR: ${{ steps.config.outputs.mirror }}
         run: |
           git remote add upstream "https://github.com/$UPSTREAM.git"
-          git fetch -q --tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+          # Upstream's tags go to refs/upstream-tags/, apart from the fork's own
+          # release tags, so the two can never collide.
+          git fetch -q --no-tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR" \
+            "+refs/tags/*:refs/upstream-tags/*"
 
       - name: Push the merge
         id: push
@@ -287,6 +299,7 @@ jobs:
 
           retry push -q origin "HEAD:refs/heads/$TRUNK"
           echo "merged=true" >>"$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
           echo "::notice::Merged upstream $REF into $TRUNK."
 
       - name: Park the conflict in a PR

@@ -36,3 +36,10 @@ setup() {
     run "$BIN/check-released" 8.6.0
     [ "$status" -eq 2 ]
 }
+
+@test "names the release without the upstream-tags namespace" {
+    git update-ref refs/upstream-tags/8.6.0 8.6.0
+    git switch -q -c trunk upstream-main
+    run "$BIN/check-released" refs/upstream-tags/8.6.0 upstream-main
+    [[ "$output" == *"not in the release 8.6.0."* ]]
+}

@@ -11,10 +11,15 @@ upstream-bound: a branch based on pristine upstream can still merge into the tru
 Upstream-bound:
 
 ```bash
-git fetch upstream --tags
+git fetch upstream
 git fetch origin
-git switch -c feat/<name> upstream/<mirror>
+git switch -c feat/<name> "$(git merge-base origin/<trunk> upstream/<mirror>)"
 ```
+
+The merge base is the newest upstream commit that the trunk holds: its upstream release, or
+the tip it last merged. The upstream PR shows only the branch's own commits, because
+upstream's `<mirror>` already holds that commit. If upstream asks for a rebase onto its tip,
+rebase the PR branch only. The trunk keeps the version that it merged.
 
 Fork-only:
 
@@ -26,6 +31,25 @@ git switch -c fork/<name> origin/<trunk>
 To ship an upstream-bound change before upstream merges it, merge the `feat/*` branch into the
 trunk with `--no-ff`. When upstream later releases the same change, the next sync removes the
 duplicate on its own or stops on a conflict. On a conflict, upstream's version usually wins.
+
+If a release stops with "The trunk holds upstream code", a branch from upstream's tip was
+merged into the trunk. Rebuild the trunk from its upstream release plus the fork's own
+commits. Show the user the result, and force-push it only after the user approves:
+
+```bash
+git fetch upstream --tags
+git switch -c rebuild "refs/tags/<tag-prefix><base>"           # the base the error names
+git rm -r -q --ignore-unmatch .github                           # none of upstream's .github
+git commit -q -m "chore: remove upstream's .github"
+git log --reverse --no-merges --format=%H origin/<trunk> ^upstream/<mirror> -- . ':!.github' |
+  xargs git cherry-pick                                        # the fork's own commits
+git checkout origin/<trunk> -- .github/fork.yml '.github/workflows/fork-*'
+git commit -q -m "chore: restore the fork tooling"
+"$KIT_DIR/bin/check-own-github" rebuild                       # prints any file that is not the fork's
+```
+
+The last command must print nothing. Any file it prints would run on the trunk with the
+fork's secrets. Remove it before the push.
 
 ## sync
 

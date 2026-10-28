@@ -13,7 +13,7 @@ trunk: patched
 node: 22
 sync:
   source: release
-  npm-package: ''
+  tag-prefix: release-
   verify: npm ci && npm test
 release:
   suffix: patched
@@ -78,3 +78,29 @@ value() { grep "^$1=" <<<"$output" | cut -d= -f2-; }
     [[ "$output" == *"sync.verify"* ]]
 }
 
+
+@test "prints the tag prefix" {
+    run "$BIN/fork-config" .github/fork.yml
+    [ "$(value tag-prefix)" = release- ]
+}
+
+@test "refuses a tag prefix with shell characters" {
+    yq -i '.sync["tag-prefix"] = "a$(x)"' .github/fork.yml
+    run "$BIN/fork-config" .github/fork.yml
+    [ "$status" -ne 0 ]
+}
+
+@test "refuses the npm source" {
+    yq -i '.sync.source = "npm"' .github/fork.yml
+    run "$BIN/fork-config" .github/fork.yml
+    [ "$status" -ne 0 ]
+}
+
+@test "refuses a tag prefix that starts with - or holds .." {
+    yq -i '.sync["tag-prefix"] = "-x"' .github/fork.yml
+    run "$BIN/fork-config" .github/fork.yml
+    [ "$status" -ne 0 ]
+    yq -i '.sync["tag-prefix"] = "a..b"' .github/fork.yml
+    run "$BIN/fork-config" .github/fork.yml
+    [ "$status" -ne 0 ]
+}

@@ -9,7 +9,7 @@ patches and publishes its own releases. The fork skill and the workflows of
 | Branch | Role |
 |---|---|
 | `{{trunk}}` | Default branch: upstream plus our patches. Releases come from here. |
-| `feat/<name>` | A change for upstream. Cut it from upstream's `{{mirror}}` (`git fetch upstream`, then `upstream/{{mirror}}`), so that the upstream PR holds only that change. |
+| `feat/<name>` | A change for upstream. Cut it from the upstream commit that `{{trunk}}` is based on: `git merge-base origin/{{trunk}} upstream/{{mirror}}`. The upstream PR then holds only that change, and a merge into `{{trunk}}` brings in no unreleased upstream code. |
 | `fork/<name>` | A change that stays in this fork. Cut it from `{{trunk}}`. |
 | `sync/<ref>` | A parked upstream merge that conflicts, without upstream's CI. Resolve it, then merge it into `{{trunk}}`. |
 

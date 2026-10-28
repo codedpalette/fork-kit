@@ -19,7 +19,7 @@ base="$1" upstream_ref="$2"
 while read -r newest; do
     if ! git merge-base --is-ancestor "$newest" "$base"; then
         count="$(git rev-list --count "$newest" "^$base")"
-        echo "HEAD holds $count upstream commits that are not in the release $base." >&2
+        echo "HEAD holds $count upstream commits that are not in the release ${base#refs/upstream-tags/}." >&2
         exit 1
     fi
 done < <(git merge-base --all HEAD "$upstream_ref")

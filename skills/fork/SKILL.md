@@ -28,9 +28,11 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    `git checkout --ours/--theirs`. Stop and hand the conflicted files to the user.
 4. **Never commit a version, name or id change to the trunk.** The release workflow stamps
    those at build time, so upstream's version bumps never conflict with ours.
-5. **Branch from the right base.** Work that can go upstream: `feat/<name>` from freshly
-   fetched `upstream/<mirror>`. Fork-only work: `fork/<name>` from the trunk. Never cut `feat/*` from the
-   trunk, because the upstream PR then carries every fork patch.
+5. **Branch from the right base.** Work that can go upstream: `feat/<name>` from the upstream
+   commit that the trunk is based on, as `work.md` shows. Fork-only work: `fork/<name>` from
+   the trunk. Never cut `feat/*` from the trunk, because the upstream PR then carries every
+   fork patch. Never cut it from upstream's tip: merged into the trunk, it brings in
+   unreleased upstream code. For release and tag sources, the release workflow then stops.
 6. **Keep upstream's CI off the trunk.** GitHub runs the workflow files of the default
    branch, and of every pushed commit, in the fork. The trunk therefore holds only the fork's
    own `fork-*` workflows: merge upstream with the kit's `bin/merge-upstream`, which removes

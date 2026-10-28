@@ -3,6 +3,45 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: tag prefixes, no npm source, release-based features (schema 1, unchanged)
+
+- `sync.tag-prefix` names the text before the version in upstream's release tags, for
+  example `release-`. The fork's versions leave it out. Empty by default.
+- The `npm` source is gone, and `sync.npm-package` is no longer read. The `tag` source covers
+  packages that tag their releases in git.
+- `feat/*` branches start from the upstream commit that the trunk is based on, not from
+  upstream's tip, so merging one into the trunk never brings in unreleased upstream code.
+- The skill deletes the mirror and `setup/fork` branches itself, and asks the user only when
+  its permissions block the deletion.
+- The PR check fails a PR that would leave any `.github` file on the trunk other than
+  `fork.yml` and `fork-*` workflows (`bin/check-own-github`).
+
+No change in the forks is needed, except a fork with `source: npm`, which must switch to
+`tag`.
+
+## kit v1 update: a sync release builds the merge (schema 1, unchanged)
+
+The release job of `fork-sync.yml` built the trunk as it was when the sync run started, before
+the merge. It published a copy of the previous release. The sync now outputs the commit that
+it pushed, and the release builds that commit. Both release callers now share one
+concurrency group, so two releases never run at once.
+
+An existing fork must update its two callers from the templates:
+
+1. In `fork-sync.yml`, give the `release` job `with: { ref: ${{ needs.sync.outputs.sha }} }` and
+   the `fork-release` concurrency group.
+2. In `fork-release.yml`, add the `fork-release` concurrency group.
+
+## kit v1 update: upstream tags apart, stamps checked (schema 1, unchanged)
+
+- The workflows fetch upstream's tags into `refs/upstream-tags/`, apart from the fork's own
+  release tags. An upstream tag named like a fork release no longer breaks every fetch.
+- The base is the bare-version upstream tag nearest to the trunk's head, and the higher
+  version on a tie. A high version tagged on an old commit can no longer become the base.
+- The publish job checks that each stamped file still matches its filter after the build.
+
+No change in the forks is needed.
+
 ## kit v1 update: PR check and exempt admins (schema 1, unchanged)
 
 The new reusable `check.yml` runs the fork's verify command on every PR into the trunk. A new

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#
+# Check that a commit's .github holds only the fork's own files.
+#
+#   check-own-github <commit>
+#
+# GitHub runs the workflow files of the trunk with the fork's secrets, so the
+# trunk may hold only .github/fork.yml and .github/workflows/fork-*. Prints
+# every other file under .github.
+#
+# Exit codes: 0 clean, 1 other files found, 2 usage error.
+
+set -euo pipefail
+
+[ $# -eq 1 ] || { echo "usage: ${0##*/} <commit>" >&2; exit 2; }
+
+status=0
+while IFS= read -r -d '' path; do
+    case "$path" in
+        .github/fork.yml | .github/workflows/fork-*) ;;
+        *) printf '%s\n' "$path"; status=1 ;;
+    esac
+done < <(git ls-tree -r -z --name-only "$1" -- .github)
+exit "$status"

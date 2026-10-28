@@ -31,5 +31,12 @@ jobs:
     uses: {{kit_repo}}/.github/workflows/release.yml@v1         # tip:remove
     permissions:                                                # tip:remove
       contents: read                                            # tip:remove
+    # Builds the commit that the sync pushed, not the trunk as it was when   # tip:remove
+    # this run started. One release at a time, shared with fork-release.yml. # tip:remove
+    concurrency:                                                # tip:remove
+      group: fork-release                                       # tip:remove
+      cancel-in-progress: false                                 # tip:remove
     secrets:                                                    # tip:remove
       SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}                     # tip:remove
+    with:                                                       # tip:remove
+      ref: ${{ needs.sync.outputs.sha }}                        # tip:remove

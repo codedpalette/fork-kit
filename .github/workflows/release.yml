@@ -41,6 +41,12 @@ on:
         description: Version to publish, instead of the computed one
         type: string
         default: ''
+      ref:
+        description: >-
+          Trunk commit to build. A sync passes the commit it pushed: the run
+          itself started on the trunk as it was before the merge.
+        type: string
+        default: ''
     outputs:
       tag:
         description: The published release tag
@@ -60,6 +66,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: fork
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -104,21 +111,35 @@ jobs:
           MIRROR: ${{ steps.config.outputs.mirror }}
           SUFFIX: ${{ steps.config.outputs.suffix }}
           VERSION_FILE: ${{ steps.config.outputs.version-file }}
+          TAG_PREFIX: ${{ steps.config.outputs.tag-prefix }}
+          TRUNK: ${{ steps.config.outputs.trunk }}
+          RUN_BRANCH: ${{ github.ref_name }}
           REQUESTED: ${{ inputs.version }}
         run: |
           # Upstream's tags give the base; the fork's own tags give N. A tip
           # fork without a version file is based on upstream's commit date.
-          git fetch -q --tags "https://github.com/$UPSTREAM.git" \
-            "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+          # Upstream's tags go to refs/upstream-tags/, apart from the fork's
+          # own release tags, so the two can never collide.
+          git fetch -q --no-tags "https://github.com/$UPSTREAM.git" \
+            "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR" "+refs/tags/*:refs/upstream-tags/*"
 
-          base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE" "upstream/$MIRROR")" || {
+          # A release is built only from the trunk's history, whatever ref a
+          # caller passes. The trunk's name comes from the branch this run
+          # started on, which the fork-sync environment admits only for the
+          # trunk, and not from the fork.yml of the commit being built.
+          if [ "$RUN_BRANCH" != "$TRUNK" ] || ! git merge-base --is-ancestor HEAD "origin/$RUN_BRANCH"; then
+            echo "::error::$(git rev-parse HEAD) is not on the trunk $RUN_BRANCH. A release builds only the trunk."
+            exit 1
+          fi
+
+          base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE" "upstream/$MIRROR" "$TAG_PREFIX")" || {
             echo "::error::Found no upstream version to base the release on."
             exit 1
           }
           # The release builds the trunk under the base's label, so the trunk
           # must hold no upstream code newer than that release.
-          if [ "$SOURCE" != tip ] && ! ../kit/bin/check-released "$base" "upstream/$MIRROR"; then
-            echo "::error::The trunk holds upstream code that $base does not. Reset it to an upstream release plus the fork's patches."
+          if [ "$SOURCE" != tip ] && ! ../kit/bin/check-released "refs/upstream-tags/$TAG_PREFIX$base" "upstream/$MIRROR"; then
+            echo "::error::The trunk holds upstream code that $base does not. Rebuild it from $base plus the fork's own commits: see the fork skill, work.md, feature."
             exit 1
           fi
           if [ -n "$REQUESTED" ]; then
@@ -277,11 +298,12 @@ jobs:
           COMMIT: ${{ steps.config.outputs.commit }}
           VERSION: ${{ needs.build.outputs.version }}
           BASE: ${{ needs.build.outputs.base }}
+          TAG_PREFIX: ${{ steps.config.outputs.tag-prefix }}
           SHA: ${{ needs.build.outputs.sha }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch -q --tags "https://github.com/$UPSTREAM.git"
+          git fetch -q --no-tags "https://github.com/$UPSTREAM.git" "+refs/tags/*:refs/upstream-tags/*"
 
           # The archive comes from the build job, which ran upstream's code.
           # Unpack it into an empty directory outside the checkout, and check
@@ -291,6 +313,17 @@ jobs:
           mapfile -t listed < <(jq -nr --argjson s "$STAMP" --argjson a "$ASSETS" --argjson c "$COMMIT" \
             '($s | keys) + $a + $c | unique | .[]')
           ../kit/bin/check-release-files ../out "${listed[@]}"
+
+          # The build can rewrite a stamped file, for example manifest.json
+          # from package.json, and ship upstream's version, name or id. Each
+          # stamped file must still match its filter: stamping it again changes
+          # nothing. A fork that stamps nothing has nothing to check.
+          while IFS=$'\t' read -r file filter; do
+            if ! jq -e --arg version "$VERSION" "($filter) == ." "../out/$file" >/dev/null; then
+              echo "::error::The build changed the stamped fields of $file. Stamp it after the build, or stop the build from writing it."
+              exit 1
+            fi
+          done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' <<<"$STAMP")
 
           # The token reaches git through a credential helper that reads it
           # from the environment, so it is never stored or put on a command line.
@@ -319,15 +352,15 @@ jobs:
               echo "Built from upstream \`$MIRROR\` at [\`${tip:0:12}\`](https://github.com/$UPSTREAM/commit/$tip), with this fork's patches."
             elif [ "$previous_base" = "$BASE" ]; then
               echo "Same upstream base as $previous: \`$BASE\`."
-            elif gh release view "$BASE" --repo "$UPSTREAM" >/dev/null 2>&1; then
-              echo "Updates to upstream \`$BASE\`. Upstream's changes: [release notes](https://github.com/$UPSTREAM/releases/tag/$BASE)."
+            elif gh release view "$TAG_PREFIX$BASE" --repo "$UPSTREAM" >/dev/null 2>&1; then
+              echo "Updates to upstream \`$BASE\`. Upstream's changes: [release notes](https://github.com/$UPSTREAM/releases/tag/$TAG_PREFIX$BASE)."
             elif [ -n "$previous_base" ]; then
-              echo "Updates to upstream \`$BASE\`. Upstream's changes: [$previous_base...$BASE](https://github.com/$UPSTREAM/compare/$previous_base...$BASE)."
+              echo "Updates to upstream \`$BASE\`. Upstream's changes: [$previous_base...$BASE](https://github.com/$UPSTREAM/compare/$TAG_PREFIX$previous_base...$TAG_PREFIX$BASE)."
             else
-              echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$BASE)."
+              echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$TAG_PREFIX$BASE)."
             fi
 
-            exclude=("^$BASE")
+            exclude=("^refs/upstream-tags/$TAG_PREFIX$BASE")
             [ "$SOURCE" = tip ] && exclude=("^upstream/$MIRROR")
             if [ -n "$previous" ]; then
               range=("$previous..$SHA")

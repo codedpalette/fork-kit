@@ -109,8 +109,8 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | `mirror` | Upstream's default branch. The fork keeps no copy of it. |
 | `trunk` | The fork's default branch: upstream plus the fork's patches |
 | `node` | Node version for verify and build |
-| `sync.source` | How upstream marks a release: `release`, `tag`, `npm` or `tip`. With `tip`, sync merges the upstream branch and nothing releases automatically. |
-| `sync.npm-package` | Package name, only for `source: npm` |
+| `sync.source` | How upstream marks a release: `release` or `tag`, or `tip`. With `tip`, sync merges the upstream branch and nothing releases automatically. |
+| `sync.tag-prefix` | Text before the version in upstream's release tags, for example `release-` in `release-1.2.3`. The fork's versions leave it out: `1.2.3-patched.1`. Empty for plain tags such as `1.2.3` or `v1.2.3`. |
 | `sync.verify` | Command that must pass before a sync pushes, and on every PR into the trunk. The skill copies it from upstream's CI. |
 | `release.suffix` | Release version is `<upstream base>-<suffix>.<N>` |
 | `release.build` | Command that builds the files to release |
@@ -150,7 +150,11 @@ The forks call the workflows at `@v1`, a tag that moves.
   push to the trunk or create tags, and immutable releases lock each release's assets.
   Releases are published with `SYNC_TOKEN`, whose owner is an admin.
 - A second ruleset lets a PR into the trunk merge only after `fork-check.yml` ran the verify
-  command. Its job holds no secrets and only read access.
+  command. Its job holds no secrets and only read access. The same check fails a PR that
+  would leave any `.github` file on the trunk other than `fork.yml` and `fork-*` workflows,
+  for example a branch cut from upstream's newer code. Direct pushes by admins skip it. The
+  check guards against mistakes, not against a hostile PR author: a PR that edits
+  `fork-check.yml` or `kit-repo` can pass its own check. Your merge stays the real gate.
 - `SYNC_TOKEN` is present only in jobs that run `git` and `gh`. The sync's `merge` job runs
   upstream's install and tests without it, and a separate `push` job holds it. A compromised
   upstream dependency therefore has no token to steal.
