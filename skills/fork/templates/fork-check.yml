@@ -1,0 +1,13 @@
+name: Fork check
+
+# Runs the verify command from fork.yml on every PR into the trunk. The
+# trunk's check ruleset requires the "check / verify" job to pass.
+on:
+  pull_request:
+    branches: [{{trunk}}]
+
+jobs:
+  check:
+    uses: {{kit_repo}}/.github/workflows/check.yml@v1
+    permissions:
+      contents: read

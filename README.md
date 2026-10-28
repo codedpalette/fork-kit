@@ -111,7 +111,7 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | `node` | Node version for verify and build |
 | `sync.source` | How upstream marks a release: `release`, `tag`, `npm` or `tip`. With `tip`, sync merges the upstream branch and nothing releases automatically. |
 | `sync.npm-package` | Package name, only for `source: npm` |
-| `sync.verify` | Command that must pass before a sync pushes |
+| `sync.verify` | Command that must pass before a sync pushes, and on every PR into the trunk. The skill copies it from upstream's CI. |
 | `release.suffix` | Release version is `<upstream base>-<suffix>.<N>` |
 | `release.build` | Command that builds the files to release |
 | `release.version-file` | File whose `.version` is the base, only for `source: tip`. Without that file or field, the base is the UTC date of the newest upstream commit in the trunk, as `YYYY.M.D` (for example `2026.1.5-patched.1`). |
@@ -149,6 +149,8 @@ The forks call the workflows at `@v1`, a tag that moves.
   can raise its own `GITHUB_TOKEN` to write access. So in each fork, rulesets let only admins
   push to the trunk or create tags, and immutable releases lock each release's assets.
   Releases are published with `SYNC_TOKEN`, whose owner is an admin.
+- A second ruleset lets a PR into the trunk merge only after `fork-check.yml` ran the verify
+  command. Its job holds no secrets and only read access.
 - `SYNC_TOKEN` is present only in jobs that run `git` and `gh`. The sync's `merge` job runs
   upstream's install and tests without it, and a separate `push` job holds it. A compromised
   upstream dependency therefore has no token to steal.

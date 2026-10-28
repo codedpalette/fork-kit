@@ -60,7 +60,7 @@ Then ask the open questions, each with its proposed default:
 | Release outputs | `assets` for files that a tool downloads from a GitHub Release, or `commit` for files that a git-URL install reads from the tag. Propose from how the project is consumed. |
 | Fields to stamp | Version fields in the files that ship, as `jq` filters on `$version` |
 | Release suffix | `patched` |
-| Verify command | From `package.json` scripts, for example `npm ci && npm test && npm run build` |
+| Verify command | The commands of upstream's CI workflow that checks a commit or PR, copied verbatim and joined with `&&`. Take only the `run:` commands, never the workflow file. Without such a workflow, from the README or `package.json` scripts, for example `npm ci && npm test && npm run build` |
 | Build command | The build part of the verify command, for example `npm run build` |
 | Node version | From `.nvmrc`, `.node-version` or `engines`, else the current LTS. For a range such as `>=22.12.0`, the major version of its lower bound: `22` |
 | Install text for `FORK.md` | How the consumer installs the fork's releases, from how the project is consumed |
@@ -121,13 +121,21 @@ gh api -X PUT repos/<owner>/<name>/actions/permissions/workflow \
 gh api -X POST repos/<owner>/<name>/rulesets --input - <<'JSON'
 {"name": "trunk: only admins push", "target": "branch", "enforcement": "active",
  "conditions": {"ref_name": {"include": ["refs/heads/<trunk>"], "exclude": []}},
- "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+ "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "exempt"}],
  "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}, {"type": "update"}]}
+JSON
+gh api -X POST repos/<owner>/<name>/rulesets --input - <<'JSON'
+{"name": "trunk: PRs pass the check", "target": "branch", "enforcement": "active",
+ "conditions": {"ref_name": {"include": ["refs/heads/<trunk>"], "exclude": []}},
+ "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+ "rules": [{"type": "required_status_checks", "parameters": {
+   "strict_required_status_checks_policy": false,
+   "required_status_checks": [{"context": "check / verify", "integration_id": 15368}]}}]}
 JSON
 gh api -X POST repos/<owner>/<name>/rulesets --input - <<'JSON'
 {"name": "tags: only admins create, move or delete", "target": "tag", "enforcement": "active",
  "conditions": {"ref_name": {"include": ["~ALL"], "exclude": []}},
- "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}],
+ "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "exempt"}],
  "rules": [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}]}
 JSON
 gh api -X PUT repos/<owner>/<name>/immutable-releases
@@ -154,7 +162,7 @@ The first two commands create the `fork-sync` environment, which only the trunk 
 token lives there, so no workflow on another branch can read it. The fourth command lets the
 sync workflow open its conflict PRs.
 
-The two rulesets and immutable releases stop upstream's workflows that run on a pushed
+The first and third rulesets, and immutable releases, stop upstream's workflows that run on a pushed
 `feat/*` branch. Such a workflow can raise its own `GITHUB_TOKEN` to write access, but only
 admins can push to the trunk or create tags, and the token's owner is an admin. Immutable
 releases lock each published release's assets and tag. A deleted release's tag name can
@@ -173,6 +181,7 @@ account has no such plan, tell the user that this protection is missing. Make su
    - `templates/fork.yml` to `.github/fork.yml`
    - `templates/fork-sync.yml` to `.github/workflows/fork-sync.yml`
    - `templates/fork-release.yml` to `.github/workflows/fork-release.yml`
+   - `templates/fork-check.yml` to `.github/workflows/fork-check.yml`
    - `templates/FORK.md` to `FORK.md`
 
    Values that need a format:
@@ -184,9 +193,10 @@ account has no such plan, tell the user that this protection is missing. Make su
 3. Commit `chore: set up fork tooling` with no attribution. Push the branch and open a PR to
    the trunk in the fork (`--repo <owner>/<name>`), never upstream.
 
-The trunk ruleset from step 3 blocks every update of the trunk except by admins. To merge
-the setup PR, or any later PR into the trunk, the user ticks "Merge without waiting for
-requirements to be met (bypass rules)" on the PR page.
+The second ruleset from step 3 lets a PR into the trunk merge only after its `check / verify`
+job passes. The admins are exempt from the first ruleset, so the user merges a green PR as
+usual. Only a PR with a failing check shows the bypass checkbox. The sync's own pushes pass,
+because the token acts as its owner, an admin.
 
 Feature work, such as the user's first patches, waits until the setup PR is merged. Before
 that, `origin/HEAD` has no `fork.yml`.
