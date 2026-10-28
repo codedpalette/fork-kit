@@ -3,6 +3,19 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: a sync release builds the merge (schema 1, unchanged)
+
+The release job of `fork-sync.yml` built the trunk as it was when the sync run started, before
+the merge. It published a copy of the previous release. The sync now outputs the commit that
+it pushed, and the release builds that commit. Both release callers now share one
+concurrency group, so two releases never run at once.
+
+An existing fork must update its two callers from the templates:
+
+1. In `fork-sync.yml`, give the `release` job `with: { ref: ${{ needs.sync.outputs.sha }} }` and
+   the `fork-release` concurrency group.
+2. In `fork-release.yml`, add the `fork-release` concurrency group.
+
 ## kit v1 update: PR check and exempt admins (schema 1, unchanged)
 
 The new reusable `check.yml` runs the fork's verify command on every PR into the trunk. A new

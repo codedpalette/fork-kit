@@ -11,6 +11,12 @@ on:
         type: string
         default: ''
 
+# One release at a time, shared with the release job of fork-sync.yml. Two
+# releases at once would compute the same version, and the second would fail.
+concurrency:
+  group: fork-release
+  cancel-in-progress: false
+
 jobs:
   release:
     uses: {{kit_repo}}/.github/workflows/release.yml@v1

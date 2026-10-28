@@ -59,6 +59,9 @@ on:
       ref:
         description: The upstream release tag, or branch for the tip
         value: ${{ jobs.merge.outputs.ref }}
+      sha:
+        description: The trunk commit that the push job pushed, when merged is "true"
+        value: ${{ jobs.push.outputs.sha }}
 
 jobs:
   merge:
@@ -194,6 +197,7 @@ jobs:
       issues: write
     outputs:
       merged: ${{ steps.push.outputs.merged }}
+      sha: ${{ steps.push.outputs.sha }}
     steps:
       - name: Check for the token
         env:
@@ -287,6 +291,7 @@ jobs:
 
           retry push -q origin "HEAD:refs/heads/$TRUNK"
           echo "merged=true" >>"$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
           echo "::notice::Merged upstream $REF into $TRUNK."
 
       - name: Park the conflict in a PR

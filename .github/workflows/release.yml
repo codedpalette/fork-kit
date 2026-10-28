@@ -41,6 +41,12 @@ on:
         description: Version to publish, instead of the computed one
         type: string
         default: ''
+      ref:
+        description: >-
+          Trunk commit to build. A sync passes the commit it pushed: the run
+          itself started on the trunk as it was before the merge.
+        type: string
+        default: ''
     outputs:
       tag:
         description: The published release tag
@@ -60,6 +66,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: fork
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
           persist-credentials: false
 
