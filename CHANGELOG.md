@@ -3,6 +3,27 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: PR check and exempt admins (schema 1, unchanged)
+
+The new reusable `check.yml` runs the fork's verify command on every PR into the trunk. A new
+ruleset requires its job to pass. The trunk and tag rulesets now exempt admins, so a green PR
+merges without the bypass checkbox.
+
+An existing fork must do this:
+
+1. Add `.github/workflows/fork-check.yml` from `skills/fork/templates/fork-check.yml`.
+2. Set `bypass_mode` to `exempt` in the trunk and tag rulesets.
+3. Create the "trunk: PRs pass the check" ruleset with the command in
+   `skills/fork/references/create.md`, step 3.
+
+## kit v1 update: release versions follow the base (schema 1, unchanged)
+
+A release started by hand accepts only `<base>-<suffix>.<N>` for the trunk's own upstream
+base. Any workflow in the fork with write access to Actions can start the release workflow,
+and a made-up version such as `99.0.0` sorted above every later release.
+
+No change in the forks is needed.
+
 ## kit v1 update: no unreleased upstream code in a release (schema 1, unchanged)
 
 A release builds the trunk and labels it with the newest upstream release in it. If the trunk

@@ -1,0 +1,72 @@
+name: Check
+
+# Reusable workflow: runs the fork's verify command on a pull request into the
+# trunk. Forks call it from fork-check.yml. The trunk's check ruleset requires
+# its job, "check / verify", to pass before a PR merges.
+#
+# ---------------------------------------------------------------------------
+# SECURITY: READ THIS BEFORE YOU EDIT THIS FILE
+#
+# The job runs upstream's code and the PR's code, so it holds nothing worth
+# taking: read-only permissions, no secrets, and every checkout sets
+# persist-credentials: false. test/isolation.bats checks that it
+# holds no secrets and no write access.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_call:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fork
+          persist-credentials: false
+
+      - name: Find the kit
+        id: kit
+        working-directory: fork
+        # The kit is checked out by a ref that only a tag or a commit can
+        # match: actions/checkout tries a branch before a tag for a bare name,
+        # so a branch named v1 in the kit repository would otherwise win.
+        run: |
+          kit="$(yq -r '.kit // "v1"' .github/fork.yml)"
+          if [[ "$kit" =~ ^[0-9a-f]{40}$ ]]; then
+            ref="$kit"
+          elif [[ "$kit" =~ ^v[0-9]+(\.[0-9]+)*$ ]]; then
+            ref="refs/tags/$kit"
+          else
+            echo "::error::fork.yml kit '$kit' must be a version tag such as v1, or a full commit SHA."
+            exit 1
+          fi
+          echo "repo=$(yq -r '.["kit-repo"] // ""' .github/fork.yml)" >>"$GITHUB_OUTPUT"
+          echo "ref=$ref" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the kit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.kit.outputs.repo }}
+          ref: ${{ steps.kit.outputs.ref }}
+          path: kit
+          persist-credentials: false
+
+      - name: Read fork.yml
+        id: config
+        working-directory: fork
+        run: ../kit/bin/fork-config .github/fork.yml >>"$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.config.outputs.node }}
+
+      - name: Verify
+        working-directory: fork
+        env:
+          VERIFY: ${{ steps.config.outputs.verify }}
+        run: bash -euo pipefail -c "$VERIFY"

@@ -143,3 +143,10 @@ setup() { cp "$SYNC" "$BATS_TEST_TMPDIR/sync.yml"; COPY="$BATS_TEST_TMPDIR/sync.
     [ "$status" -eq 1 ]
 }
 
+
+@test "check.yml holds no secrets and no write access" {
+    check="$BATS_TEST_DIRNAME/../.github/workflows/check.yml"
+    ! grep -Eq '(^|[^A-Za-z_])secrets([^A-Za-z_]|$)|github\.token' "$check"
+    [ "$(yq '[.jobs[].permissions | to_entries[] | .value] | all_c(. == "read" or . == "none")' "$check")" = true ]
+    [ "$(yq '[.jobs[].steps[] | select(.uses // "" | test("^actions/checkout@")) | .with["persist-credentials"]] | all_c(. == false)' "$check")" = true ]
+}
