@@ -152,7 +152,9 @@ The forks call the workflows at `@v1`, a tag that moves.
 - A second ruleset lets a PR into the trunk merge only after `fork-check.yml` ran the verify
   command. Its job holds no secrets and only read access. The same check fails a PR that
   would leave any `.github` file on the trunk other than `fork.yml` and `fork-*` workflows,
-  for example a branch cut from upstream's newer code. Direct pushes by admins skip it.
+  for example a branch cut from upstream's newer code. Direct pushes by admins skip it. The
+  check guards against mistakes, not against a hostile PR author: a PR that edits
+  `fork-check.yml` or `kit-repo` can pass its own check. Your merge stays the real gate.
 - `SYNC_TOKEN` is present only in jobs that run `git` and `gh`. The sync's `merge` job runs
   upstream's install and tests without it, and a separate `push` job holds it. A compromised
   upstream dependency therefore has no token to steal.

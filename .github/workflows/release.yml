@@ -113,6 +113,7 @@ jobs:
           VERSION_FILE: ${{ steps.config.outputs.version-file }}
           TAG_PREFIX: ${{ steps.config.outputs.tag-prefix }}
           TRUNK: ${{ steps.config.outputs.trunk }}
+          RUN_BRANCH: ${{ github.ref_name }}
           REQUESTED: ${{ inputs.version }}
         run: |
           # Upstream's tags give the base; the fork's own tags give N. A tip
@@ -123,9 +124,11 @@ jobs:
             "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR" "+refs/tags/*:refs/upstream-tags/*"
 
           # A release is built only from the trunk's history, whatever ref a
-          # caller passes.
-          if ! git merge-base --is-ancestor HEAD "origin/$TRUNK"; then
-            echo "::error::$(git rev-parse HEAD) is not on $TRUNK. A release builds only the trunk."
+          # caller passes. The trunk's name comes from the branch this run
+          # started on, which the fork-sync environment admits only for the
+          # trunk, and not from the fork.yml of the commit being built.
+          if [ "$RUN_BRANCH" != "$TRUNK" ] || ! git merge-base --is-ancestor HEAD "origin/$RUN_BRANCH"; then
+            echo "::error::$(git rev-parse HEAD) is not on the trunk $RUN_BRANCH. A release builds only the trunk."
             exit 1
           fi
 
