@@ -40,6 +40,12 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    pushed for its upstream PR, and upstream's workflows then run on it, but they cannot read
    `SYNC_TOKEN`: it lives in the `fork-sync` environment, which only the trunk can use.
 
+## Running the commands
+
+Run each `git push`, branch deletion and `gh` call that changes something as a command of its
+own, not chained with `&&` or `;` to other commands. A permission check or a hook can then judge
+it alone. Some setups refuse a chained command that they cannot judge.
+
 ## Start of work in an existing fork
 
 Do these before anything else, once per session:

@@ -28,6 +28,11 @@ git fetch origin
 git switch -c fork/<name> origin/<trunk>
 ```
 
+Either kind reaches the trunk through a PR in the fork, so that the required check runs:
+commit with no attribution, push the branch, and open the PR with
+`gh pr create --repo <owner>/<name> --base <trunk>`. The user merges it. A `feat/*` branch
+also gets its PR upstream, as rule 2 of `SKILL.md` describes.
+
 To ship an upstream-bound change before upstream merges it, merge the `feat/*` branch into the
 trunk with `--no-ff`. When upstream later releases the same change, the next sync removes the
 duplicate on its own or stops on a conflict. On a conflict, upstream's version usually wins.
