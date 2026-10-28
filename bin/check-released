@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+#
+# Check that HEAD holds no upstream code newer than the release it is based on.
+#
+#   check-released <base> <upstream ref>     e.g. check-released 8.6.0 upstream/main
+#
+# A fork release builds the trunk and takes its version from <base>. If the
+# trunk also holds upstream commits that came after <base>, the release ships
+# unreleased upstream code under the <base> label. Every newest upstream commit
+# in HEAD must therefore be in <base>.
+#
+# Exit codes: 0 clean, 1 HEAD holds unreleased upstream commits, 2 usage error.
+
+set -euo pipefail
+
+[ $# -eq 2 ] || { echo "usage: ${0##*/} <base> <upstream ref>" >&2; exit 2; }
+base="$1" upstream_ref="$2"
+
+while read -r newest; do
+    if ! git merge-base --is-ancestor "$newest" "$base"; then
+        count="$(git rev-list --count "$newest" "^$base")"
+        echo "HEAD holds $count upstream commits that are not in the release $base." >&2
+        exit 1
+    fi
+done < <(git merge-base --all HEAD "$upstream_ref")

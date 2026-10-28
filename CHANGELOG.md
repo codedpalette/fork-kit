@@ -3,6 +3,16 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: no unreleased upstream code in a release (schema 1, unchanged)
+
+A release builds the trunk and labels it with the newest upstream release in it. If the trunk
+also held upstream commits after that release, the release shipped them under the old
+label. For the `release`, `tag` and `npm` sources, the release now stops with an error in that
+case, through `bin/check-released`.
+
+No change in the forks is needed. A fork whose trunk holds such commits must reset its trunk
+to an upstream release plus its own patches.
+
 ## kit v1 update: whole-.github isolation (schema 1, unchanged)
 
 `bin/merge-upstream` listed upstream's CI files by name, and git quotes names with

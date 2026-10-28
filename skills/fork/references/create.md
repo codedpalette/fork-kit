@@ -71,13 +71,20 @@ Then ask the open questions, each with its proposed default:
 gh repo fork <upstream> --clone --default-branch-only   # add --org <owner> for an organization
 cd <name>
 git remote set-url --push upstream DISABLED
-git switch -c <trunk> <release ref, or upstream/<mirror> for the tip>
+git fetch -q upstream --tags
+git switch -c <trunk> --no-track <start>
 git rm -r -q --ignore-unmatch .github
 git commit -q -m "chore: remove upstream's .github"
 git push -u origin <trunk>
 gh repo edit --default-branch <trunk>
 git remote set-head origin --auto
 ```
+
+`<start>` is the upstream release that step 1 detected, as a tag: `refs/tags/<release>`. If
+no such tag exists, as for an npm version, use `refs/tags/v<release>`. Only for the `tip`
+source, `<start>` is `upstream/<mirror>`. Never start the trunk from upstream's tip for
+another source. A release builds the trunk under the release's version. If the trunk holds
+newer upstream code, the release workflow stops.
 
 If the fork already exists, the same `gh repo fork` command clones it. With `--clone`, gh adds
 the `upstream` remote itself.
