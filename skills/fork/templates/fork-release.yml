@@ -2,7 +2,7 @@ name: Fork release
 
 on:
   push:                                                         # tip:remove
-    branches: [{{trunk}}]                                       # tip:remove
+    branches: ['{{trunk}}']                                       # tip:remove
     paths-ignore: ['.github/**', '**/*.md']                     # tip:remove
   workflow_dispatch:
     inputs:

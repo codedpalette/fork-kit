@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+#
+# Render the fork templates into a fork's working tree.
+#
+#   render-templates <values.json> <fork dir>
+#
+# <values.json> holds every value, for example:
+#
+#   {"kit_repo": "me/fork-kit", "upstream": "org/project", "mirror": "main",
+#    "trunk": "dev", "node": "22", "source": "release", "tag_prefix": "",
+#    "verify": "npm ci && npm test", "suffix": "patched", "build": "npm run build",
+#    "version_file": "package.json", "stamp": {"package.json": ".version = $version"},
+#    "assets": ["dist/a.js"], "commit": [], "install": "Install with ..."}
+#
+# Writes .github/fork.yml, the three .github/workflows/fork-*.yml callers and
+# FORK.md. In fork.yml every value is written as JSON, which is valid YAML, so
+# no command or filter can break the file. Only {{name}} placeholders are
+# replaced: GitHub's own ${{ ... }} expressions have spaces and stay as they
+# are. For the tip source, lines that end in "# tip:remove" are dropped;
+# otherwise only that marker goes. The files are rendered and checked with
+# fork-config in a temporary directory first, so a failure changes nothing in
+# <fork dir>.
+#
+# Exit codes: 0 rendered, 1 bad or missing values, 2 usage error.
+
+set -euo pipefail
+
+[ $# -eq 2 ] || { echo "usage: ${0##*/} <values.json> <fork dir>" >&2; exit 2; }
+values="$1" out="$2"
+bin="$(cd "$(dirname "$0")" && pwd)"
+templates="$bin/../skills/fork/templates"
+files=(.github/fork.yml .github/workflows/fork-sync.yml .github/workflows/fork-release.yml
+    .github/workflows/fork-check.yml FORK.md)
+
+fail() { echo "error: $*" >&2; exit 1; }
+
+jq -e 'type == "object"' "$values" >/dev/null 2>&1 || fail "$values is not a JSON object"
+
+# Every placeholder in the templates needs a value.
+missing="$(grep -ohE '\{\{[a-z_]+\}\}' "$templates"/* | sort -u | tr -d '{}' |
+    jq -Rr --slurpfile v "$values" 'select(. as $k | $v[0] | has($k) | not)' | paste -sd ' ' -)"
+[ -z "$missing" ] || fail "missing values: $missing"
+
+# string <key> [<regex>]: a string, matching the whole regex when one is given.
+string() {
+    jq -e --arg k "$1" --arg re "${2:-}" \
+        '.[$k] | type == "string" and ($re == "" or test($re))' "$values" >/dev/null ||
+        fail "$1 must be a string${2:+ matching $2}"
+}
+# One path segment of a branch name: no leading dot or dash, no "..", no ".lock" end.
+segment='[A-Za-z0-9_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)*'
+branch="\\A${segment}(/${segment})*\\z"
+string kit_repo '\A[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*\z'
+string upstream '\A[A-Za-z0-9_-][A-Za-z0-9_.-]*/[A-Za-z0-9_-][A-Za-z0-9_.-]*\z'
+string mirror "$branch"
+string trunk "$branch"
+jq -e '[.trunk, .mirror] | all(test("\\.lock(/|\\z)") | not)' "$values" >/dev/null || fail "trunk and mirror cannot end in .lock"
+string source '\A(release|tag|tip)\z'
+string suffix '\A[A-Za-z0-9]+\z'
+string node '\A\S+\z'
+string tag_prefix
+for key in verify build version_file install; do string "$key" '\S'; done
+jq -e '.stamp | type == "object" and all(.[]; type == "string")' "$values" >/dev/null ||
+    fail "stamp must be a map of file to jq filter, all strings"
+for key in assets commit; do
+    jq -e --arg k "$key" '.[$k] | type == "array" and all(.[]; type == "string")' "$values" >/dev/null ||
+        fail "$key must be a list of strings"
+done
+
+source="$(jq -r .source "$values")"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+# render <template> <destination> <json|raw>
+render() {
+    jq -nr --rawfile t "$templates/$1" --slurpfile v "$values" --arg mode "$3" --arg source "$source" '
+        $v[0] as $v
+        | $t | rtrimstr("\n") | split("\n")
+        | map(
+            if test("#[[:space:]]*tip:remove$") then
+              if $source == "tip" then empty else sub("[[:space:]]*# tip:remove$"; "") end
+            else . end
+            | . as $line
+            | if $mode == "json" and ($line | test("^[[:space:]]*#") | not) then
+                gsub("\\{\\{(?<k>[a-z_]+)\\}\\}"; $v[.k] | tojson)
+              else
+                # Raw templates use only string values; a list or map here
+                # makes jq stop with an error, which fails the render.
+                gsub("\\{\\{(?<k>[a-z_]+)\\}\\}"; $v[.k])
+              end)
+        | join("\n")' >"$tmp/$2"
+}
+
+mkdir -p "$tmp/.github/workflows"
+render fork.yml .github/fork.yml json
+render fork-sync.yml .github/workflows/fork-sync.yml raw
+render fork-release.yml .github/workflows/fork-release.yml raw
+render fork-check.yml .github/workflows/fork-check.yml raw
+render FORK.md FORK.md raw
+"$bin/fork-config" "$tmp/.github/fork.yml" >/dev/null || fail "the rendered fork.yml does not pass fork-config"
+
+mkdir -p "$out/.github/workflows"
+for f in "${files[@]}"; do cp "$tmp/$f" "$out/$f"; done

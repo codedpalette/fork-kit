@@ -6,7 +6,9 @@ Read `fork.yml` from `origin/HEAD` first, as `SKILL.md` describes. `<mirror>`, `
 ## feature
 
 Ask the user whether the change is upstream-bound or fork-only. If unsure, treat it as
-upstream-bound: a branch based on pristine upstream can still merge into the trunk.
+fork-only. To send it upstream later, cut a new `feat/*` branch as below and cherry-pick its
+commits there. The `fork/*` branch itself cannot go upstream, because it holds the fork's
+tooling.
 
 Upstream-bound:
 
@@ -28,8 +30,13 @@ git fetch origin
 git switch -c fork/<name> origin/<trunk>
 ```
 
-To ship an upstream-bound change before upstream merges it, merge the `feat/*` branch into the
-trunk with `--no-ff`. When upstream later releases the same change, the next sync removes the
+Either kind reaches the trunk through a PR in the fork, so that the required check runs:
+commit with no attribution, push the branch, and open the PR with
+`gh pr create --repo <owner>/<name> --base <trunk>`. The user merges it. A `feat/*` branch
+also gets its PR upstream, as rule 2 of `SKILL.md` describes.
+
+To ship an upstream-bound change before upstream merges it, open a PR from the `feat/*`
+branch into the trunk in the fork, as above, and merge it with a merge commit. When upstream later releases the same change, the next sync removes the
 duplicate on its own or stops on a conflict. On a conflict, upstream's version usually wins.
 
 If a release stops with "The trunk holds upstream code", a branch from upstream's tip was
@@ -119,5 +126,5 @@ are current. For a tip-source fork, report whether upstream started to publish r
 
 1. Read the kit's `CHANGELOG.md` for every kit and schema version after the fork's.
 2. On an `upgrade/kit-<version>` branch from the trunk, render the current templates again
-   with the values from the old `fork.yml`. Apply the schema changes from the changelog.
+   with `"$KIT_DIR/bin/render-templates"`, from the values in the old `fork.yml` and `FORK.md`. Apply the schema changes from the changelog.
 3. Open a PR to the trunk. List what changed and why, from the changelog.

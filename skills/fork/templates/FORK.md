@@ -22,6 +22,8 @@ Fork releases are tagged `<upstream version>-{{suffix}}.<N>`, for example `1.2.3
 Upstream's own tags never carry the `-{{suffix}}.` part. N starts at 1 for each new upstream
 version.
 
+## Install
+
 {{install}}
 
 ## Configuration

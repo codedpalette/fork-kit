@@ -9,7 +9,7 @@ Two kinds of fork exist:
 
 - **One-off**: fork, fix, send one PR upstream. No workflows, no trunk, no secrets.
 - **Persistent**: a fork that carries its own patches and is consumed from the fork. It has a
-  trunk, `.github/fork.yml`, and two caller workflows that run the shared
+  trunk, `.github/fork.yml`, and three caller workflows that run the shared
   workflows of the kit repository (`fork-kit`).
 
 ## Rules for every fork
@@ -39,6 +39,12 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    upstream's whole `.github` and keeps only the fork's own files. Never push upstream's default branch to the fork. A `feat/*` branch has to be
    pushed for its upstream PR, and upstream's workflows then run on it, but they cannot read
    `SYNC_TOKEN`: it lives in the `fork-sync` environment, which only the trunk can use.
+
+## Running the commands
+
+Run each `git push`, branch deletion and `gh` call that changes something as a command of its
+own, not chained with `&&` or `;` to other commands. A permission check or a hook can then judge
+it alone. Some setups refuse a chained command that they cannot judge.
 
 ## Start of work in an existing fork
 
@@ -79,8 +85,8 @@ A one-off fork can become persistent later: `adopt` handles that.
 
 | Mode | When | Instructions |
 |---|---|---|
-| `create` | Fork a repository, one-off or persistent | `references/create.md` |
-| `adopt` | Bring an existing fork, or a one-off, under `fork.yml` | `references/create.md`, section Adopt |
+| `create` | Fork a repository, one-off or persistent, also when the fork exists but holds nothing of the user's yet | `references/create.md` |
+| `adopt` | Bring a fork that already carries the user's own branches, commits or workflows, or a one-off, under `fork.yml` | `references/create.md`, section Adopt |
 | `feature` | Start a change in a persistent fork | `references/work.md` |
 | `sync` | Pull upstream into the trunk by hand | `references/work.md` |
 | `release` | Cut a release by hand (tip-source forks, or a re-release) | `references/work.md` |
