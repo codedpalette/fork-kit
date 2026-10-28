@@ -9,7 +9,7 @@ Two kinds of fork exist:
 
 - **One-off**: fork, fix, send one PR upstream. No workflows, no trunk, no secrets.
 - **Persistent**: a fork that carries its own patches and is consumed from the fork. It has a
-  trunk, `.github/fork.yml`, and two caller workflows that run the shared
+  trunk, `.github/fork.yml`, and three caller workflows that run the shared
   workflows of the kit repository (`fork-kit`).
 
 ## Rules for every fork
@@ -85,7 +85,7 @@ A one-off fork can become persistent later: `adopt` handles that.
 
 | Mode | When | Instructions |
 |---|---|---|
-| `create` | Fork a repository, one-off or persistent. Also for a fork that holds only upstream's branches, with nothing of the user's yet, such as one the user just made. | `references/create.md` |
+| `create` | Fork a repository, one-off or persistent, also when the fork exists but holds nothing of the user's yet | `references/create.md` |
 | `adopt` | Bring a fork that already carries the user's own branches, commits or workflows, or a one-off, under `fork.yml` | `references/create.md`, section Adopt |
 | `feature` | Start a change in a persistent fork | `references/work.md` |
 | `sync` | Pull upstream into the trunk by hand | `references/work.md` |

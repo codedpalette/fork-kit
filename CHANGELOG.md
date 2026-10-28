@@ -9,7 +9,9 @@ schema version and what a fork must change.
 every `fork.yml` value as JSON, so no command or filter can break the YAML, and it leaves
 GitHub's own `${{ ... }}` expressions alone. `fork.yml`'s comments now sit above their keys.
 
-No change in the forks is needed.
+The skill now prefers a lint command that only reports, such as `lint:no-fix`, over one that
+rewrites files. No change in the forks is needed, but the upgrade mode reviews
+`sync.verify`: if it runs a lint with `--fix` and a report-only variant exists, propose it.
 
 ## kit v1 update: tag prefixes, no npm source, release-based features (schema 1, unchanged)
 

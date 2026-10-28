@@ -52,7 +52,7 @@ JSON
     grep -A2 '^## Install$' FORK.md | grep -qF 'Add `org/project` in BRAT.'
 }
 
-@test "a missing value fails and names it" {
+@test "a missing value fails" {
     jq 'del(.build)' "$VALUES" >v2.json
     run "$BIN/render-templates" v2.json .
     [ "$status" -ne 0 ]
@@ -63,4 +63,36 @@ JSON
     jq '.trunk = "dev; rm -rf /"' "$VALUES" >v2.json
     run "$BIN/render-templates" v2.json .
     [ "$status" -eq 1 ]
+}
+
+@test "a value of the wrong type fails before anything is written" {
+    for change in '.verify = null' '.node = null' '.stamp = ".version = $version"' \
+        '.assets = "main.js"' '.install = {"a": 1}' '.trunk = "dev\n"' '.trunk = "a..b"' \
+        '.trunk = "dev.lock"' '.trunk = "dev/"'; do
+        jq "$change" "$VALUES" >v2.json
+        run "$BIN/render-templates" v2.json .
+        [ "$status" -eq 1 ] || { echo "accepted: $change"; false; }
+        [ ! -e .github/fork.yml ]
+    done
+}
+
+@test "a missing value exits 1, names it and writes nothing" {
+    jq 'del(.assets, .build)' "$VALUES" >v2.json
+    run "$BIN/render-templates" v2.json .
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"missing values: assets build"* ]]
+    [ ! -e .github/fork.yml ]
+}
+
+@test "a value that fails fork-config writes nothing" {
+    jq '.tag_prefix = "-bad"' "$VALUES" >v2.json
+    run "$BIN/render-templates" v2.json .
+    [ "$status" -eq 1 ]
+    [ ! -e .github/fork.yml ]
+}
+
+@test "a trunk that YAML would retype stays a string in the workflows" {
+    jq '.trunk = "true"' "$VALUES" >v2.json
+    "$BIN/render-templates" v2.json .
+    [ "$(yq '.on.pull_request.branches[0] | type' .github/workflows/fork-check.yml)" = '!!str' ]
 }

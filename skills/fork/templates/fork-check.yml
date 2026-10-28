@@ -4,7 +4,7 @@ name: Fork check
 # trunk's check ruleset requires the "check / verify" job to pass.
 on:
   pull_request:
-    branches: [{{trunk}}]
+    branches: ['{{trunk}}']
 
 jobs:
   check:

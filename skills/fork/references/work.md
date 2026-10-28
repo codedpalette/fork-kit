@@ -6,7 +6,9 @@ Read `fork.yml` from `origin/HEAD` first, as `SKILL.md` describes. `<mirror>`, `
 ## feature
 
 Ask the user whether the change is upstream-bound or fork-only. If unsure, treat it as
-fork-only. It can still go upstream later, on a `feat/*` branch cut as below.
+fork-only. To send it upstream later, cut a new `feat/*` branch as below and cherry-pick its
+commits there. The `fork/*` branch itself cannot go upstream, because it holds the fork's
+tooling.
 
 Upstream-bound:
 
@@ -33,8 +35,8 @@ commit with no attribution, push the branch, and open the PR with
 `gh pr create --repo <owner>/<name> --base <trunk>`. The user merges it. A `feat/*` branch
 also gets its PR upstream, as rule 2 of `SKILL.md` describes.
 
-To ship an upstream-bound change before upstream merges it, merge the `feat/*` branch into the
-trunk with `--no-ff`. When upstream later releases the same change, the next sync removes the
+To ship an upstream-bound change before upstream merges it, open a PR from the `feat/*`
+branch into the trunk in the fork, as above, and merge it with a merge commit. When upstream later releases the same change, the next sync removes the
 duplicate on its own or stops on a conflict. On a conflict, upstream's version usually wins.
 
 If a release stops with "The trunk holds upstream code", a branch from upstream's tip was

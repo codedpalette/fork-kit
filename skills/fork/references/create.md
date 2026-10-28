@@ -10,7 +10,8 @@ KIT_DIR="<this skill's base directory>/../.."
 
 ## One-off fork
 
-1. Fork without the upstream's other branches, and disable the upstream push URL:
+1. Fork without the upstream's other branches, and disable the upstream push URL. `<owner>` is
+   `gh api user -q .login`:
 
    ```bash
    gh repo fork <upstream> --clone --default-branch-only
@@ -93,7 +94,9 @@ the `tip` source, `<start>` is `upstream/<mirror>`. Never start the trunk from u
 another source. A release builds the trunk under the release's version. If the trunk holds
 newer upstream code, the release workflow stops.
 
-If the fork already exists, the same `gh repo fork` command clones it. With `--clone`, gh adds
+If the fork already exists, the same `gh repo fork` command clones it. Before you choose and
+push the trunk, list the fork's branches with `git ls-remote --heads origin`. If a branch with
+the trunk's name exists there, choose another name. Never force-push it. With `--clone`, gh adds
 the `upstream` remote itself, and marks upstream as the clone's default repository for `gh`.
 `gh repo set-default` points `gh` at the fork instead. Without it, a bare `gh repo edit` or
 `gh pr create` acts on upstream. Still name the fork in every `gh` call that takes a
@@ -144,10 +147,12 @@ JSON
 gh api -X PUT repos/<owner>/<name>/immutable-releases
 ```
 
-Then copy the token into the fork:
+Then copy the token into the fork, and wait for the run to finish:
 
 ```bash
 gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
+gh run list -R <kit-repo> --workflow distribute-secret.yml -L 1 --json databaseId -q '.[0].databaseId'
+gh run watch <run id> -R <kit-repo> --exit-status
 ```
 
 The kit's `SYNC_TOKEN` token reaches only the repositories on its list, and GitHub has no API
@@ -160,7 +165,7 @@ the list. Then stop and tell the user, in these words:
 > when it is done.
 
 After the user's answer, run the distribute workflow again. If the run fails for another
-reason, show the user the error from `gh run view --log-failed -R <kit-repo>`, and stop.
+reason, show the user the error from `gh run view <run id> --log-failed -R <kit-repo>`, and stop.
 
 When the run succeeds, make sure that the secret arrived:
 `gh secret list -R <owner>/<name> --env fork-sync` lists `SYNC_TOKEN`.
@@ -183,14 +188,17 @@ failing check does not merge by accident.
 Rulesets on a private repository need a paid GitHub plan. If the fork is private and the
 account has no such plan, tell the user that this protection is missing.
 
-Last, delete the fork's copy of upstream's default branch. It holds upstream's workflows while
-Actions is on:
+Last, delete every branch on the fork except the trunk: the copy of upstream's `<mirror>`,
+and any other upstream branch that an existing fork carries. Each holds upstream's workflows
+while Actions is on. This step comes last so that a blocked deletion does not hold up the
+setup. List the branches, then delete each one with its own command:
 
 ```bash
-git push origin --delete <mirror>
+gh api repos/<owner>/<name>/branches --paginate --jq '.[].name'
+git push origin --delete <branch>
 ```
 
-If your permissions block the command, give the user the command with `git -C <clone path>`.
+If your permissions block the command, give the user the commands with `git -C <clone path>`.
 Go on with step 4 while you wait, because step 4 does not depend on the deletion.
 
 ### 4. Add the tooling as a setup PR
@@ -222,8 +230,10 @@ that, `origin/HEAD` has no `fork.yml`.
 
 After the user merged the setup PR, delete the `setup/fork` branch:
 `git push origin --delete setup/fork`. If your permissions block the command, ask the user to
-use the "Delete branch" button on the merged PR. Then dispatch the first sync and the first release, one after
-the other, and report both:
+use the "Delete branch" button on the merged PR. Make sure that the deletions of step 3 are
+done: `gh api repos/<owner>/<name>/branches --jq '.[].name'` lists only the trunk and the
+user's own branches. Then dispatch the first sync and the first release, one after the other,
+and report both:
 
 ```bash
 gh workflow run fork-sync.yml -R <owner>/<name>
@@ -243,14 +253,16 @@ names that the fork already uses.
    and the secrets (`gh secret list`).
 2. Ask only what the existing setup does not answer. Run the release detection above. For a
    project without `package.json`, give the Node-only warning above.
-3. Do step 3 of the persistent fork, except the distribute run. Upstream's workflows can
-   still be on the trunk, and they must not get a token that the trunk can read.
+3. Do step 3 of the persistent fork, except the distribute run and the branch deletion.
+   Upstream's workflows can still be on the trunk, and they must not get a token that the
+   trunk can read. An adopted fork can hold the user's own branches, so never delete
+   branches wholesale.
 4. Render the templates on a `setup/fork` branch from the trunk, with `bin/render-templates` as in
    step 4 of the persistent fork. In the same PR, delete the
    fork's old sync and release workflows that the callers replace, and remove upstream's whole
    `.github`: every file in it except `.github/fork.yml` and `.github/workflows/fork-*`.
-5. If the fork keeps a copy of upstream's default branch, delete it, as at the end of step 3
-   of the persistent fork.
+5. If the fork keeps a copy of upstream's default branch, delete that branch only, with its
+   own `git push origin --delete <mirror>`. Hand the command to the user if it is blocked.
 6. Disable the upstream push URL and run `git remote set-head origin --auto`.
 7. After the user merges the PR, run the distribute workflow as step 3 describes. It also
    moves an old repository-level `SYNC_TOKEN` into the environment. Then dispatch one sync
