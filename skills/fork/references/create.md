@@ -68,7 +68,7 @@ Then ask the open questions, each with its proposed default:
 | Release outputs | `assets` for files that a tool downloads from a GitHub Release, or `commit` for files that a git-URL install reads from the tag. Propose from how the project is consumed. |
 | Fields to stamp | Version fields in the files that ship, as `jq` filters on `$version` |
 | Release suffix | `patched` |
-| Verify command | The commands from upstream's CI workflow for commits or PRs that install, build, lint and test the code, copied verbatim and joined with `&&`. Leave out steps that deploy, publish, upload artifacts, copy files elsewhere, install system packages, or only print reports. If a lint command rewrites files (`--fix`) and the project has a variant that only reports, such as a `lint:no-fix` script, use that variant: a check must fail on errors, not repair them. Take only `run:` commands, never the workflow file. Without such a workflow, take them from the README or the `package.json` scripts, for example `npm ci && npm test && npm run build` |
+| Verify command | The commands from upstream's CI workflow for commits or PRs that install, build, lint and test the code, copied verbatim and joined with `&&`. Leave out steps that deploy, publish, upload artifacts, copy files elsewhere, install system packages, or only print reports. Take only `run:` commands, never the workflow file. Without such a workflow, take them from the README or the `package.json` scripts, for example `npm ci && npm test && npm run build` |
 | Build command | The build part of the verify command, for example `npm run build` |
 | Node version | From `.nvmrc`, `.node-version` or `engines`, else the current LTS. For a range such as `>=22.12.0`, the major version of its lower bound: `22` |
 | Install text for `FORK.md` | How the consumer installs the fork's releases, from how the project is consumed |
@@ -96,7 +96,8 @@ newer upstream code, the release workflow stops.
 
 If the fork already exists, the same `gh repo fork` command clones it. Before you choose and
 push the trunk, list the fork's branches with `git ls-remote --heads origin`. If a branch with
-the trunk's name exists there, choose another name. Never force-push it. With `--clone`, gh adds
+the trunk's name exists there, stop and show the user the clash and the list of branches, and
+ask for another trunk name. Never force-push it. With `--clone`, gh adds
 the `upstream` remote itself, and marks upstream as the clone's default repository for `gh`.
 `gh repo set-default` points `gh` at the fork instead. Without it, a bare `gh repo edit` or
 `gh pr create` acts on upstream. Still name the fork in every `gh` call that takes a
@@ -150,10 +151,15 @@ gh api -X PUT repos/<owner>/<name>/immutable-releases
 Then copy the token into the fork, and wait for the run to finish:
 
 ```bash
+started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
-gh run list -R <kit-repo> --workflow distribute-secret.yml -L 1 --json databaseId -q '.[0].databaseId'
+gh run list -R <kit-repo> --workflow distribute-secret.yml -L 5 --json databaseId,createdAt \
+  -q "[.[] | select(.createdAt >= \"$started\")][0].databaseId"
 gh run watch <run id> -R <kit-repo> --exit-status
 ```
+
+The new run takes a few seconds to appear. Until `gh run list` prints a run id, wait and run
+it again. Never watch an older run: it can be an earlier failure.
 
 The kit's `SYNC_TOKEN` token reaches only the repositories on its list, and GitHub has no API
 to change that list. If the distribute run fails with a permissions error, the fork is not on
@@ -188,13 +194,23 @@ failing check does not merge by accident.
 Rulesets on a private repository need a paid GitHub plan. If the fork is private and the
 account has no such plan, tell the user that this protection is missing.
 
-Last, delete every branch on the fork except the trunk: the copy of upstream's `<mirror>`,
-and any other upstream branch that an existing fork carries. Each holds upstream's workflows
-while Actions is on. This step comes last so that a blocked deletion does not hold up the
-setup. List the branches, then delete each one with its own command:
+Last, delete every upstream branch on the fork except the trunk: the copy of upstream's
+`<mirror>`, and any other upstream branch that an existing fork carries. Each holds upstream's
+workflows while Actions is on. This step comes last so that a blocked deletion does not hold
+up the setup. List the branches with their tips:
 
 ```bash
-gh api repos/<owner>/<name>/branches --paginate --jq '.[].name'
+gh api repos/<owner>/<name>/branches --paginate --jq '.[] | "\(.name) \(.commit.sha)"'
+```
+
+Delete a branch only if both checks pass. Its tip is in upstream:
+`git merge-base --is-ancestor <sha> upstream/<mirror>`, or `git ls-remote --heads upstream
+<branch>` prints the same commit. And no PR uses it: `gh pr list -R <owner>/<name> --head
+<branch>` and `gh pr list -R <upstream> --head <owner>:<branch>` print nothing. Any other
+branch can hold the user's own work: leave it, and tell the user. Delete each branch with its
+own command:
+
+```bash
 git push origin --delete <branch>
 ```
 

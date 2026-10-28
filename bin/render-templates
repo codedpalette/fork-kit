@@ -84,6 +84,8 @@ render() {
             | if $mode == "json" and ($line | test("^[[:space:]]*#") | not) then
                 gsub("\\{\\{(?<k>[a-z_]+)\\}\\}"; $v[.k] | tojson)
               else
+                # Raw templates use only string values; a list or map here
+                # makes jq stop with an error, which fails the render.
                 gsub("\\{\\{(?<k>[a-z_]+)\\}\\}"; $v[.k])
               end)
         | join("\n")' >"$tmp/$2"
