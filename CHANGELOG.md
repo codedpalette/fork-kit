@@ -3,6 +3,14 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: template renderer (schema 1, unchanged)
+
+`bin/render-templates` renders the fork templates from one JSON file of values. It writes
+every `fork.yml` value as JSON, so no command or filter can break the YAML, and it leaves
+GitHub's own `${{ ... }}` expressions alone. `fork.yml`'s comments now sit above their keys.
+
+No change in the forks is needed.
+
 ## kit v1 update: tag prefixes, no npm source, release-based features (schema 1, unchanged)
 
 - `sync.tag-prefix` names the text before the version in upstream's release tags, for

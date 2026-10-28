@@ -3,19 +3,29 @@
 schema: 1
 kit: v1
 kit-repo: {{kit_repo}}
-upstream: {{upstream}}            # owner/name
-mirror: {{mirror}}                # upstream's default branch (not kept in the fork)
-trunk: {{trunk}}                  # our default branch: upstream plus our patches
-node: {{node}}                    # setup-node version for verify and build
+# owner/name
+upstream: {{upstream}}
+# Upstream's default branch, not kept in the fork
+mirror: {{mirror}}
+# Our default branch: upstream plus our patches
+trunk: {{trunk}}
+# setup-node version for verify and build
+node: {{node}}
 sync:
-  source: {{source}}              # release | tag | tip
-  tag-prefix: '{{tag_prefix}}'    # text before the version in upstream's tags, e.g. release-
+  # release | tag | tip
+  source: {{source}}
+  # Text before the version in upstream's tags, for example release-
+  tag-prefix: {{tag_prefix}}
   verify: {{verify}}
 release:
-  suffix: {{suffix}}              # version = <upstream base>-<suffix>.<N>
+  # Version = <upstream base>-<suffix>.<N>
+  suffix: {{suffix}}
   build: {{build}}
-  version-file: {{version_file}}  # only read for source: tip
-  stamp:                          # file -> jq filter, $version is defined
-{{stamp}}
-  assets: [{{assets}}]            # attached to the GitHub Release
-  commit: [{{commit}}]            # force-added into a tag-only commit, for git-URL installs
+  # Only read for source: tip
+  version-file: {{version_file}}
+  # File -> jq filter, with $version defined
+  stamp: {{stamp}}
+  # Attached to the GitHub Release
+  assets: {{assets}}
+  # Force-added into a tag-only commit, for git-URL installs
+  commit: {{commit}}

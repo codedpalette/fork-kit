@@ -6,7 +6,7 @@ Read `fork.yml` from `origin/HEAD` first, as `SKILL.md` describes. `<mirror>`, `
 ## feature
 
 Ask the user whether the change is upstream-bound or fork-only. If unsure, treat it as
-upstream-bound: a branch based on pristine upstream can still merge into the trunk.
+fork-only. It can still go upstream later, on a `feat/*` branch cut as below.
 
 Upstream-bound:
 
@@ -119,5 +119,5 @@ are current. For a tip-source fork, report whether upstream started to publish r
 
 1. Read the kit's `CHANGELOG.md` for every kit and schema version after the fork's.
 2. On an `upgrade/kit-<version>` branch from the trunk, render the current templates again
-   with the values from the old `fork.yml`. Apply the schema changes from the changelog.
+   with `"$KIT_DIR/bin/render-templates"`, from the values in the old `fork.yml` and `FORK.md`. Apply the schema changes from the changelog.
 3. Open a PR to the trunk. List what changed and why, from the changelog.

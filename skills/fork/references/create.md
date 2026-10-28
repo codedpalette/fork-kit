@@ -159,7 +159,11 @@ the list. Then stop and tell the user, in these words:
 > in `<kit-repo>`, choose "Only select repositories", add `<owner>/<name>`, and save. Tell me
 > when it is done.
 
-After the user's answer, run the distribute workflow again.
+After the user's answer, run the distribute workflow again. If the run fails for another
+reason, show the user the error from `gh run view --log-failed -R <kit-repo>`, and stop.
+
+When the run succeeds, make sure that the secret arrived:
+`gh secret list -R <owner>/<name> --env fork-sync` lists `SYNC_TOKEN`.
 
 The first two commands create the `fork-sync` environment, which only the trunk can use. The
 token lives there, so no workflow on another branch can read it. The fourth command lets the
@@ -171,9 +175,13 @@ admins can push to the trunk or create tags, and the token's owner is an admin. 
 releases lock each published release's assets and tag. A deleted release's tag name can
 never be used again.
 
+The first and third rulesets exempt admins (`bypass_mode: exempt`): the rules do not apply to
+them at all, so the user merges and the sync pushes with no bypass prompt. The check ruleset
+uses `always` instead: admins can still bypass it, but GitHub asks first, so a PR with a
+failing check does not merge by accident.
+
 Rulesets on a private repository need a paid GitHub plan. If the fork is private and the
-account has no such plan, tell the user that this protection is missing. Make sure that the secret arrived:
-`gh secret list -R <owner>/<name> --env fork-sync` lists `SYNC_TOKEN`.
+account has no such plan, tell the user that this protection is missing.
 
 Last, delete the fork's copy of upstream's default branch. It holds upstream's workflows while
 Actions is on:
@@ -188,21 +196,17 @@ Go on with step 4 while you wait, because step 4 does not depend on the deletion
 ### 4. Add the tooling as a setup PR
 
 1. Cut `setup/fork` from the trunk.
-2. Render the templates from `templates/` into the fork. Fill in every `{{...}}` value. For
-   the `tip` source, remove each line that ends in `# tip:remove`. For other sources, remove
-   only the marker comments:
-   - `templates/fork.yml` to `.github/fork.yml`
-   - `templates/fork-sync.yml` to `.github/workflows/fork-sync.yml`
-   - `templates/fork-release.yml` to `.github/workflows/fork-release.yml`
-   - `templates/fork-check.yml` to `.github/workflows/fork-check.yml`
-   - `templates/FORK.md` to `FORK.md`
+2. Write the answers from step 1 to a JSON file outside the clone, then render the
+   templates with the kit's script. It writes `.github/fork.yml`, the three
+   `.github/workflows/fork-*.yml` callers and `FORK.md`, and checks the result:
 
-   Values that need a format:
-   - `{{stamp}}`: one line per file, indented by four spaces, with the filter in single
-     quotes: `    manifest.json: '.version = $version'`.
-   - `{{version_file}}`: `package.json`, also for sources other than `tip`.
-   - `{{commit}}` and `{{assets}}`: a comma-separated list, or nothing for an empty list.
-   - `{{install}}`: a `## Install` heading, then the install text.
+   ```bash
+   "$KIT_DIR/bin/render-templates" <values.json> .
+   ```
+
+   The script's header lists the keys, with an example. `stamp` is a map of file to `jq`
+   filter, `assets` and `commit` are lists, and `install` is the install text without a
+   heading. Never fill in the templates by hand.
 3. Commit `chore: set up fork tooling` with no attribution. Push the branch and open a PR to
    the trunk in the fork (`--repo <owner>/<name>`), never upstream.
 
@@ -241,7 +245,8 @@ names that the fork already uses.
    project without `package.json`, give the Node-only warning above.
 3. Do step 3 of the persistent fork, except the distribute run. Upstream's workflows can
    still be on the trunk, and they must not get a token that the trunk can read.
-4. Render the templates on a `setup/fork` branch from the trunk. In the same PR, delete the
+4. Render the templates on a `setup/fork` branch from the trunk, with `bin/render-templates` as in
+   step 4 of the persistent fork. In the same PR, delete the
    fork's old sync and release workflows that the callers replace, and remove upstream's whole
    `.github`: every file in it except `.github/fork.yml` and `.github/workflows/fork-*`.
 5. If the fork keeps a copy of upstream's default branch, delete it, as at the end of step 3
