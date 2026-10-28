@@ -128,7 +128,10 @@ jobs:
           NPM_PACKAGE: ${{ steps.config.outputs.npm-package }}
         run: |
           git remote add upstream "https://github.com/$UPSTREAM.git"
-          git fetch -q --tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+          # Upstream's tags go to refs/upstream-tags/, apart from the fork's own
+          # release tags, so the two can never collide.
+          git fetch -q --no-tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR" \
+            "+refs/tags/*:refs/upstream-tags/*"
 
           if [ "$SOURCE" = tip ]; then
             ref="$MIRROR"
@@ -141,8 +144,11 @@ jobs:
               exit 1
             fi
             [ "$rc" -eq 0 ] || exit "$rc"
-            git rev-parse -q --verify "$ref^{commit}" >/dev/null || git fetch -q upstream "$ref"
-            sha="$(git rev-parse "$ref^{commit}")"
+            # A tag name for release and tag sources, a commit for npm.
+            target="refs/upstream-tags/$ref"
+            git rev-parse -q --verify "$target^{commit}" >/dev/null || target="$ref"
+            git rev-parse -q --verify "$target^{commit}" >/dev/null || git fetch -q upstream "$target"
+            sha="$(git rev-parse "$target^{commit}")"
           fi
 
           echo "ref=$ref" >>"$GITHUB_OUTPUT"
@@ -255,7 +261,10 @@ jobs:
           MIRROR: ${{ steps.config.outputs.mirror }}
         run: |
           git remote add upstream "https://github.com/$UPSTREAM.git"
-          git fetch -q --tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+          # Upstream's tags go to refs/upstream-tags/, apart from the fork's own
+          # release tags, so the two can never collide.
+          git fetch -q --no-tags upstream "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR" \
+            "+refs/tags/*:refs/upstream-tags/*"
 
       - name: Push the merge
         id: push

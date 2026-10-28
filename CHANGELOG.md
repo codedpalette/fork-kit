@@ -3,6 +3,16 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: upstream tags apart, stamps checked (schema 1, unchanged)
+
+- The workflows fetch upstream's tags into `refs/upstream-tags/`, apart from the fork's own
+  release tags. An upstream tag named like a fork release no longer breaks every fetch.
+- The base is the bare-version upstream tag nearest to the trunk's head, and the higher
+  version on a tie. A high version tagged on an old commit can no longer become the base.
+- The publish job checks that each stamped file still matches its filter after the build.
+
+No change in the forks is needed.
+
 ## kit v1 update: PR check and exempt admins (schema 1, unchanged)
 
 The new reusable `check.yml` runs the fork's verify command on every PR into the trunk. A new

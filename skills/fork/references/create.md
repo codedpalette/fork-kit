@@ -60,7 +60,7 @@ Then ask the open questions, each with its proposed default:
 | Release outputs | `assets` for files that a tool downloads from a GitHub Release, or `commit` for files that a git-URL install reads from the tag. Propose from how the project is consumed. |
 | Fields to stamp | Version fields in the files that ship, as `jq` filters on `$version` |
 | Release suffix | `patched` |
-| Verify command | The commands of upstream's CI workflow that checks a commit or PR, copied verbatim and joined with `&&`. Take only the `run:` commands, never the workflow file. Without such a workflow, from the README or `package.json` scripts, for example `npm ci && npm test && npm run build` |
+| Verify command | The commands from upstream's CI workflow for commits or PRs that install, build, lint and test the code, copied verbatim and joined with `&&`. Leave out steps that deploy, publish, upload artifacts, copy files elsewhere, install system packages, or only print reports. Take only `run:` commands, never the workflow file. Without such a workflow, take them from the README or the `package.json` scripts, for example `npm ci && npm test && npm run build` |
 | Build command | The build part of the verify command, for example `npm run build` |
 | Node version | From `.nvmrc`, `.node-version` or `engines`, else the current LTS. For a range such as `>=22.12.0`, the major version of its lower bound: `22` |
 | Install text for `FORK.md` | How the consumer installs the fork's releases, from how the project is consumed |
@@ -203,7 +203,9 @@ that, `origin/HEAD` has no `fork.yml`.
 
 ### 5. Finish
 
-After the user merged the setup PR, dispatch the first sync and the first release, one after
+After the user merged the setup PR, ask the user to delete the `setup/fork` branch with the
+"Delete branch" button on the merged PR, because the agent's permissions block branch
+deletion. Then dispatch the first sync and the first release, one after
 the other, and report both:
 
 ```bash
