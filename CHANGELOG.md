@@ -6,14 +6,23 @@ schema version and what a fork must change.
 ## kit v1 update: branch prefixes, token request first (schema 1, unchanged)
 
 - Fork-only branches always start with `fork/`. An upstream-bound branch takes any prefix
-  that fits the change, such as `feat/`, `fix/` or `docs/`, but never `fork/`, `sync/`,
-  `setup/` or `upgrade/`. It still starts from the upstream commit that the trunk is based on.
+  that fits the change, such as `feat/`, `fix/` or `docs/`, but never `fork/` or `sync/`. It
+  still starts from the upstream commit that the trunk is based on.
+- The sync opens its conflict PRs with `SYNC_TOKEN` in place of `GITHUB_TOKEN`. Because you
+  author the PR yourself, GitHub sends no email for it, so the sync run fails when it opens
+  the PR and on each 7-day reminder. The failure email replaces the assignment email.
+- The PR check skips `sync/*` PRs. GitHub counts a skipped required check as passed.
+- New forks set "Allow GitHub Actions to create and approve pull requests" to off.
 - The skill asks the user to add a new fork to the kit's token right after it creates the
   fork. It runs the distribute workflow, a sync or a release only after the user's answer,
   and asks the user to merge the setup PR only after the token arrived.
 - `FORK.md` describes the new branch rules.
 
-No change in the forks is needed. To update a fork's `FORK.md`, use the `upgrade` mode.
+Before the `v1` tag moves to this update, add "Pull requests: read and write" to the
+`SYNC_TOKEN` token. Without it, the next conflicting sync cannot open its PR. After that, in
+each fork you can turn off "Allow GitHub Actions to create and approve pull requests"
+(Settings, Actions, General). To update a fork's `FORK.md` and drop the unused
+`pull-requests` and `issues` grants from `fork-sync.yml`, use the `upgrade` mode.
 
 ## kit v1 update: template renderer (schema 1, unchanged)
 

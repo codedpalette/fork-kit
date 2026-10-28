@@ -33,7 +33,8 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    never open an upstream PR from one, because it holds the fork's tooling and patches.
    Upstream-bound work: a prefix that fits the change and the user's request, such as
    `feat/<name>`, `fix/<name>` or `docs/<name>`, or the convention of upstream's contributing
-   guide. Never `fork/`, `sync/`, `setup/` or `upgrade/`, which the kit uses. Cut it from the
+   guide. Never `fork/`, which marks fork-only work, and never `sync/`, which the sync
+   workflow uses for its conflict PRs and which the PR check skips. Cut it from the
    upstream commit that the trunk is based on, as `work.md` shows. Never cut it from the
    trunk, because the upstream PR then carries every fork patch. Never cut it from upstream's
    tip: merged into the trunk, it brings in unreleased upstream code. For release and tag

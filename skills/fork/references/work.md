@@ -12,7 +12,7 @@ the fork's tooling.
 
 Upstream-bound: `<prefix>` fits the change and the user's request, for example `feat` for a
 feature, `fix` for a bug fix or `docs` for documentation. If upstream's contributing guide
-names its own prefixes, use those. `<prefix>` is never `fork`, `sync`, `setup` or `upgrade`.
+names its own prefixes, use those. `<prefix>` is never `fork` or `sync`.
 
 ```bash
 git fetch upstream
@@ -121,8 +121,8 @@ gh workflow view fork-sync.yml -R <owner>/<name>            # disabled after 60 
 ```
 
 If the trunk has CI files other than `fork-*`, report them as a security problem: upstream's
-workflows run in the fork with its secrets. Also list the upstream-bound branches (every branch except the trunk and the `fork/*`,
-`sync/*`, `setup/*` and `upgrade/*` branches) whose commits upstream already has: `git cherry -v
+workflows run in the fork with its secrets. Also list the upstream-bound branches (every branch except the trunk, `setup/fork`, `upgrade/kit-*`
+and the `fork/*` and `sync/*` branches) whose commits upstream already has: `git cherry -v
 upstream/<mirror> <branch>` marks those commits with a minus sign. Report whether `kit` and `schema`
 are current. For a tip-source fork, report whether upstream started to publish releases.
 

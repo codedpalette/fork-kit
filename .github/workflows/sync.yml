@@ -39,8 +39,11 @@ name: Sync upstream
 # check.
 # ---------------------------------------------------------------------------
 #
-# A conflict is parked in a sync/<ref> PR assigned to the owner, and the run
-# stays green: the open PR is the reminder, not a daily failure email.
+# A conflict is parked in a sync/<ref> PR assigned to the owner. SYNC_TOKEN
+# opens it, so the owner is its author, and GitHub sends no email for one's own
+# PR. The run therefore fails once when it opens the PR and once every 7 days
+# while the PR stays open, and GitHub's failure email is the reminder. On the
+# other days the run stays green.
 
 on:
   # The caller passes SYNC_TOKEN by name. At the caller its value is empty:
@@ -198,8 +201,6 @@ jobs:
     environment: fork-sync
     permissions:
       contents: read
-      pull-requests: write
-      issues: write
     outputs:
       merged: ${{ steps.push.outputs.merged }}
       sha: ${{ steps.push.outputs.sha }}
@@ -306,7 +307,7 @@ jobs:
         if: needs.merge.outputs.result == 'conflict'
         working-directory: fork
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           PUSH_TOKEN: ${{ secrets.SYNC_TOKEN }}
           GH_REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
@@ -343,6 +344,8 @@ jobs:
             echo "::notice::Upstream $REF still conflicts. PR #$pr is $age days old."
             if [ "$age" -gt 0 ] && [ $(( age % 7 )) -eq 0 ]; then
               gh pr comment "$pr" --body "Still conflicting after $age days. Syncs and releases from upstream stay paused."
+              echo "::error::Upstream $REF still conflicts with $TRUNK after $age days. Resolve PR #$pr."
+              exit 1
             fi
             exit 0
           fi
@@ -427,4 +430,5 @@ jobs:
 
           gh pr create --base "$TRUNK" --head "$branch" --title "Sync upstream $REF into $TRUNK" \
             --body-file body.md --assignee "$OWNER"
-          echo "::warning::Upstream $REF conflicts with $TRUNK. Opened a sync PR."
+          echo "::error::Upstream $REF conflicts with $TRUNK. Opened a sync PR to resolve."
+          exit 1
