@@ -13,6 +13,8 @@ schema version and what a fork must change.
   upstream's tip, so merging one into the trunk never brings in unreleased upstream code.
 - The skill deletes the mirror and `setup/fork` branches itself, and asks the user only when
   its permissions block the deletion.
+- The PR check fails a PR that would leave any `.github` file on the trunk other than
+  `fork.yml` and `fork-*` workflows (`bin/check-own-github`).
 
 No change in the forks is needed, except a fork with `source: npm`, which must switch to
 `tag`.

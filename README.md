@@ -150,7 +150,9 @@ The forks call the workflows at `@v1`, a tag that moves.
   push to the trunk or create tags, and immutable releases lock each release's assets.
   Releases are published with `SYNC_TOKEN`, whose owner is an admin.
 - A second ruleset lets a PR into the trunk merge only after `fork-check.yml` ran the verify
-  command. Its job holds no secrets and only read access.
+  command. Its job holds no secrets and only read access. The same check fails a PR that
+  would leave any `.github` file on the trunk other than `fork.yml` and `fork-*` workflows,
+  for example a branch cut from upstream's newer code. Direct pushes by admins skip it.
 - `SYNC_TOKEN` is present only in jobs that run `git` and `gh`. The sync's `merge` job runs
   upstream's install and tests without it, and a separate `push` job holds it. A compromised
   upstream dependency therefore has no token to steal.

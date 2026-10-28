@@ -60,6 +60,20 @@ jobs:
         working-directory: fork
         run: ../kit/bin/fork-config .github/fork.yml >>"$GITHUB_OUTPUT"
 
+      # Before any upstream code runs: the trunk may hold only the fork's own
+      # .github files, because GitHub runs the trunk's workflows with the
+      # fork's secrets. A branch cut from upstream's newer code brings upstream's
+      # workflow files with it.
+      - name: Check .github
+        working-directory: fork
+        run: |
+          if ! others="$(../kit/bin/check-own-github HEAD)"; then
+            echo "::error::This PR would put files other than the fork's own on the trunk's .github:"
+            echo "$others"
+            echo "Remove them from the PR. If the branch started from upstream's tip, cut it again from the upstream commit the trunk is based on."
+            exit 1
+          fi
+
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

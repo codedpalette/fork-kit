@@ -45,11 +45,11 @@ git log --reverse --no-merges --format=%H origin/<trunk> ^upstream/<mirror> -- .
   xargs git cherry-pick                                        # the fork's own commits
 git checkout origin/<trunk> -- .github/fork.yml '.github/workflows/fork-*'
 git commit -q -m "chore: restore the fork tooling"
-git ls-tree -r --name-only rebuild -- .github                   # only fork.yml and fork-* files
+"$KIT_DIR/bin/check-own-github" rebuild                       # prints any file that is not the fork's
 ```
 
-The last command must list only `.github/fork.yml` and `.github/workflows/fork-*`. Any other
-file would run on the trunk with the fork's secrets. Remove it before the push.
+The last command must print nothing. Any file it prints would run on the trunk with the
+fork's secrets. Remove it before the push.
 
 ## sync
 
