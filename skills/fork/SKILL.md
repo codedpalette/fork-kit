@@ -79,8 +79,8 @@ A one-off fork can become persistent later: `adopt` handles that.
 
 | Mode | When | Instructions |
 |---|---|---|
-| `create` | Fork a repository, one-off or persistent | `references/create.md` |
-| `adopt` | Bring an existing fork, or a one-off, under `fork.yml` | `references/create.md`, section Adopt |
+| `create` | Fork a repository, one-off or persistent. Also for a fork that holds only upstream's branches, with nothing of the user's yet, such as one the user just made. | `references/create.md` |
+| `adopt` | Bring a fork that already carries the user's own branches, commits or workflows, or a one-off, under `fork.yml` | `references/create.md`, section Adopt |
 | `feature` | Start a change in a persistent fork | `references/work.md` |
 | `sync` | Pull upstream into the trunk by hand | `references/work.md` |
 | `release` | Cut a release by hand (tip-source forks, or a re-release) | `references/work.md` |

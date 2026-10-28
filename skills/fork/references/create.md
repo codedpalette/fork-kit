@@ -15,6 +15,7 @@ KIT_DIR="<this skill's base directory>/../.."
    ```bash
    gh repo fork <upstream> --clone --default-branch-only
    cd <name>
+   gh repo set-default <owner>/<name>
    git remote set-url --push upstream DISABLED
    ```
 
@@ -66,7 +67,7 @@ Then ask the open questions, each with its proposed default:
 | Release outputs | `assets` for files that a tool downloads from a GitHub Release, or `commit` for files that a git-URL install reads from the tag. Propose from how the project is consumed. |
 | Fields to stamp | Version fields in the files that ship, as `jq` filters on `$version` |
 | Release suffix | `patched` |
-| Verify command | The commands from upstream's CI workflow for commits or PRs that install, build, lint and test the code, copied verbatim and joined with `&&`. Leave out steps that deploy, publish, upload artifacts, copy files elsewhere, install system packages, or only print reports. Take only `run:` commands, never the workflow file. Without such a workflow, take them from the README or the `package.json` scripts, for example `npm ci && npm test && npm run build` |
+| Verify command | The commands from upstream's CI workflow for commits or PRs that install, build, lint and test the code, copied verbatim and joined with `&&`. Leave out steps that deploy, publish, upload artifacts, copy files elsewhere, install system packages, or only print reports. If a lint command rewrites files (`--fix`) and the project has a variant that only reports, such as a `lint:no-fix` script, use that variant: a check must fail on errors, not repair them. Take only `run:` commands, never the workflow file. Without such a workflow, take them from the README or the `package.json` scripts, for example `npm ci && npm test && npm run build` |
 | Build command | The build part of the verify command, for example `npm run build` |
 | Node version | From `.nvmrc`, `.node-version` or `engines`, else the current LTS. For a range such as `>=22.12.0`, the major version of its lower bound: `22` |
 | Install text for `FORK.md` | How the consumer installs the fork's releases, from how the project is consumed |
@@ -76,13 +77,14 @@ Then ask the open questions, each with its proposed default:
 ```bash
 gh repo fork <upstream> --clone --default-branch-only   # add --org <owner> for an organization
 cd <name>
+gh repo set-default <owner>/<name>
 git remote set-url --push upstream DISABLED
 git fetch -q upstream --tags
 git switch -c <trunk> --no-track <start>
 git rm -r -q --ignore-unmatch .github
 git commit -q -m "chore: remove upstream's .github"
 git push -u origin <trunk>
-gh repo edit --default-branch <trunk>
+gh repo edit <owner>/<name> --default-branch <trunk>
 git remote set-head origin --auto
 ```
 
@@ -92,21 +94,14 @@ another source. A release builds the trunk under the release's version. If the t
 newer upstream code, the release workflow stops.
 
 If the fork already exists, the same `gh repo fork` command clones it. With `--clone`, gh adds
-the `upstream` remote itself.
+the `upstream` remote itself, and marks upstream as the clone's default repository for `gh`.
+`gh repo set-default` points `gh` at the fork instead. Without it, a bare `gh repo edit` or
+`gh pr create` acts on upstream. Still name the fork in every `gh` call that takes a
+repository.
 
 The trunk's first commit removes upstream's whole `.github`, the same rule that
 `bin/merge-upstream` applies. A new fork can have Actions turned on, so upstream's workflows
 must never reach a branch that you push.
-
-Then delete the fork's copy of upstream's default branch. It holds upstream's workflows while
-Actions is on:
-
-```bash
-git push origin --delete <mirror>
-```
-
-If your permissions block the command, give the user the command with `git -C <clone path>`,
-and wait for the answer.
 
 `<mirror>` is upstream's default branch, the `mirror` key of `fork.yml`. The fork does not
 keep a copy of it, because a push of upstream's branch runs upstream's workflows in the fork.
@@ -180,6 +175,16 @@ Rulesets on a private repository need a paid GitHub plan. If the fork is private
 account has no such plan, tell the user that this protection is missing. Make sure that the secret arrived:
 `gh secret list -R <owner>/<name> --env fork-sync` lists `SYNC_TOKEN`.
 
+Last, delete the fork's copy of upstream's default branch. It holds upstream's workflows while
+Actions is on:
+
+```bash
+git push origin --delete <mirror>
+```
+
+If your permissions block the command, give the user the command with `git -C <clone path>`.
+Go on with step 4 while you wait, because step 4 does not depend on the deletion.
+
 ### 4. Add the tooling as a setup PR
 
 1. Cut `setup/fork` from the trunk.
@@ -239,8 +244,8 @@ names that the fork already uses.
 4. Render the templates on a `setup/fork` branch from the trunk. In the same PR, delete the
    fork's old sync and release workflows that the callers replace, and remove upstream's whole
    `.github`: every file in it except `.github/fork.yml` and `.github/workflows/fork-*`.
-5. If the fork keeps a copy of upstream's default branch, delete it, as in step 2 of the
-   persistent fork.
+5. If the fork keeps a copy of upstream's default branch, delete it, as at the end of step 3
+   of the persistent fork.
 6. Disable the upstream push URL and run `git remote set-head origin --auto`.
 7. After the user merges the PR, run the distribute workflow as step 3 describes. It also
    moves an old repository-level `SYNC_TOKEN` into the environment. Then dispatch one sync
