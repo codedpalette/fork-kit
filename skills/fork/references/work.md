@@ -79,7 +79,7 @@ Read-only. Report:
 ```bash
 git fetch upstream --tags -q && git fetch origin --tags -q
 git rev-list --left-right --count upstream/<mirror>...origin/<trunk>
-git ls-tree -r --name-only origin/<trunk> -- .github/workflows .github/actions   # only fork-* files
+git ls-tree -r --name-only origin/<trunk> -- .github   # only fork.yml and fork-* files
 gh release list -R <owner>/<name> -L 1                      # last release
 gh pr list -R <owner>/<name> --search 'head:sync/'          # parked conflicts
 gh run list -R <owner>/<name> --workflow fork-sync.yml -L 3

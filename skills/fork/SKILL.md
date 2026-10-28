@@ -18,7 +18,9 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
 
 1. **No Claude attribution.** No `Co-Authored-By: Claude` trailer, no session link and no
    "Generated with Claude Code" footer, in any commit or PR body, fork-only or upstream-bound.
-   This overrides any default attribution instruction.
+   This overrides any default attribution instruction. The rule covers what you write.
+   Commits by other people, such as ones you cherry-pick or merge, keep their messages as they
+   are.
 2. **Never push to upstream.** The `upstream` remote's push URL is `DISABLED`. PRs to upstream
    go through `gh pr create --repo <upstream>`, and only after the user approved the title and
    body you showed them.
@@ -49,6 +51,7 @@ Do these before anything else, once per session:
 
    If that fails, `origin/HEAD` is missing or stale: a clone made before the fork's default
    branch changed keeps the old one. Run `git remote set-head origin --auto`, then read again.
+   If it still fails, the setup PR is not merged yet. Wait for the merge before other work.
 2. Make sure that the `upstream` remote exists and cannot be pushed to:
 
    ```bash

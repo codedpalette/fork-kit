@@ -13,7 +13,7 @@ KIT_DIR="<this skill's base directory>/../.."
 1. Fork without the upstream's other branches, and disable the upstream push URL:
 
    ```bash
-   gh repo fork <upstream> --clone --remote --default-branch-only
+   gh repo fork <upstream> --clone --default-branch-only
    cd <name>
    git remote set-url --push upstream DISABLED
    ```
@@ -61,31 +61,53 @@ Then ask the open questions, each with its proposed default:
 | Fields to stamp | Version fields in the files that ship, as `jq` filters on `$version` |
 | Release suffix | `patched` |
 | Verify command | From `package.json` scripts, for example `npm ci && npm test && npm run build` |
-| Node version | From `.nvmrc`, `.node-version` or `engines`, else the current LTS |
+| Build command | The build part of the verify command, for example `npm run build` |
+| Node version | From `.nvmrc`, `.node-version` or `engines`, else the current LTS. For a range such as `>=22.12.0`, the major version of its lower bound: `22` |
+| Install text for `FORK.md` | How the consumer installs the fork's releases, from how the project is consumed |
 
 ### 2. Fork and set up the branches
 
 ```bash
-gh repo fork <upstream> --clone --remote --default-branch-only   # add --org <owner> for an organization
+gh repo fork <upstream> --clone --default-branch-only   # add --org <owner> for an organization
 cd <name>
 git remote set-url --push upstream DISABLED
-git switch -c <trunk> <release ref, or upstream/<mirror> for the tip>
+git fetch -q upstream --tags
+git switch -c <trunk> --no-track <start>
+git rm -r -q --ignore-unmatch .github
+git commit -q -m "chore: remove upstream's .github"
 git push -u origin <trunk>
 gh repo edit --default-branch <trunk>
 git remote set-head origin --auto
-git push origin --delete <mirror>
+```
+
+`<start>` is the upstream release that step 1 detected, as a tag: `refs/tags/<release>`. If
+no such tag exists, as for an npm version, use `refs/tags/v<release>`. Only for the `tip`
+source, `<start>` is `upstream/<mirror>`. Never start the trunk from upstream's tip for
+another source. A release builds the trunk under the release's version. If the trunk holds
+newer upstream code, the release workflow stops.
+
+If the fork already exists, the same `gh repo fork` command clones it. With `--clone`, gh adds
+the `upstream` remote itself.
+
+The trunk's first commit removes upstream's whole `.github`, the same rule that
+`bin/merge-upstream` applies. A new fork can have Actions turned on, so upstream's workflows
+must never reach a branch that you push.
+
+Then stop and ask the user to delete the fork's copy of upstream's default branch, because
+the agent's permissions block branch deletion. It holds upstream's workflows while Actions
+is on. Give the user this command, and wait for the answer:
+
+```bash
+git -C <clone path> push origin --delete <mirror>
 ```
 
 `<mirror>` is upstream's default branch, the `mirror` key of `fork.yml`. The fork does not
 keep a copy of it, because a push of upstream's branch runs upstream's workflows in the fork.
-`feat/*` branches start from `upstream/<mirror>` instead. New forks have Actions turned off,
-so nothing runs before step 4.
+`feat/*` branches start from `upstream/<mirror>` instead.
 
 ### 3. Add the tooling as a setup PR
 
-1. Cut `setup/fork` from the trunk, and remove upstream's CI from it:
-   `git rm -r -q --ignore-unmatch .github/workflows .github/actions`. Upstream's workflows
-   must never be on the trunk, because GitHub runs them with the fork's secrets.
+1. Cut `setup/fork` from the trunk.
 2. Render the templates from `templates/` into the fork. Fill in every `{{...}}` value. For
    the `tip` source, remove each line that ends in `# tip:remove`. For other sources, remove
    only the marker comments:
@@ -93,13 +115,25 @@ so nothing runs before step 4.
    - `templates/fork-sync.yml` to `.github/workflows/fork-sync.yml`
    - `templates/fork-release.yml` to `.github/workflows/fork-release.yml`
    - `templates/FORK.md` to `FORK.md`
+
+   Values that need a format:
+   - `{{stamp}}`: one line per file, indented by four spaces, with the filter in single
+     quotes: `    manifest.json: '.version = $version'`.
+   - `{{version_file}}`: `package.json`, also for sources other than `tip`.
+   - `{{commit}}` and `{{assets}}`: a comma-separated list, or nothing for an empty list.
+   - `{{install}}`: a `## Install` heading, then the install text.
 3. Commit `chore: set up fork tooling` with no attribution. Push the branch and open a PR to
    the trunk in the fork (`--repo <owner>/<name>`), never upstream.
 
+Feature work, such as the user's first patches, waits until the setup PR is merged. Before
+that, `origin/HEAD` has no `fork.yml`. Open patch PRs after the merge, and tell the user to
+merge them only after step 4: a push to the trunk starts a release, and the release fails
+without the token.
+
 ### 4. Set up the GitHub side
 
-Do this only after the user merged the setup PR, so that the trunk has no upstream CI when
-Actions turns on.
+Do this only after the user merged the setup PR, because step 5 runs the workflows that the
+setup PR adds.
 
 ```bash
 gh api -X PUT repos/<owner>/<name>/environments/fork-sync \
@@ -157,11 +191,16 @@ account has no such plan, tell the user that this protection is missing. Make su
 
 ### 5. Finish
 
-Dispatch the first sync and report the result:
+Dispatch the first sync and the first release, one after the other, and report both:
 
 ```bash
 gh workflow run fork-sync.yml -R <owner>/<name>
+gh workflow run fork-release.yml -R <owner>/<name>
 ```
+
+If the trunk already holds the newest upstream release, the sync merges nothing. Then the
+first release comes from the dispatch. If the user's patch PRs are waiting, skip the release
+dispatch, because merging them starts the release.
 
 ## Adopt
 
@@ -173,8 +212,8 @@ names that the fork already uses.
 2. Ask only what the existing setup does not answer. Run the release detection above. For a
    project without `package.json`, give the Node-only warning above.
 3. Render the templates on a `setup/fork` branch from the trunk. In the same PR, delete the
-   fork's old sync and release workflows that the callers replace, and remove upstream's CI:
-   every file under `.github/workflows` and `.github/actions` that is not a `fork-*` file.
+   fork's old sync and release workflows that the callers replace, and remove upstream's whole
+   `.github`: every file in it except `.github/fork.yml` and `.github/workflows/fork-*`.
 4. After the user merges the PR, delete the fork's copy of upstream's default branch
    (`git push origin --delete <mirror>`), then do step 4 of the persistent fork, including
    the instruction to add the fork to the kit's token. The

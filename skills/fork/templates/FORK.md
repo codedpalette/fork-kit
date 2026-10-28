@@ -14,8 +14,7 @@ patches and publishes its own releases. The fork skill and the workflows of
 | `sync/<ref>` | A parked upstream merge that conflicts, without upstream's CI. Resolve it, then merge it into `{{trunk}}`. |
 
 The fork keeps no copy of upstream's `{{mirror}}`, and `{{trunk}}` holds none of upstream's
-`.github/workflows` or `.github/actions`, because GitHub runs them here with this fork's
-secrets.
+`.github` files, because GitHub runs upstream's workflows here with this fork's secrets.
 
 ## Releases
 

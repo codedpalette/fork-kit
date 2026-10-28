@@ -115,6 +115,12 @@ jobs:
             echo "::error::Found no upstream version to base the release on."
             exit 1
           }
+          # The release builds the trunk under the base's label, so the trunk
+          # must hold no upstream code newer than that release.
+          if [ "$SOURCE" != tip ] && ! ../kit/bin/check-released "$base" "upstream/$MIRROR"; then
+            echo "::error::The trunk holds upstream code that $base does not. Reset it to an upstream release plus the fork's patches."
+            exit 1
+          fi
           if [ -n "$REQUESTED" ]; then
             if ! [[ "$REQUESTED" =~ ^[A-Za-z0-9._-]+$ ]]; then
               echo "::error::Not a valid version: $REQUESTED"
