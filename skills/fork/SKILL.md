@@ -28,15 +28,20 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    `git checkout --ours/--theirs`. Stop and hand the conflicted files to the user.
 4. **Never commit a version, name or id change to the trunk.** The release workflow stamps
    those at build time, so upstream's version bumps never conflict with ours.
-5. **Branch from the right base.** Work that can go upstream: `feat/<name>` from the upstream
-   commit that the trunk is based on, as `work.md` shows. Fork-only work: `fork/<name>` from
-   the trunk. Never cut `feat/*` from the trunk, because the upstream PR then carries every
-   fork patch. Never cut it from upstream's tip: merged into the trunk, it brings in
-   unreleased upstream code. For release and tag sources, the release workflow then stops.
+5. **Name and base each branch by its kind.** Fork-only work: always `fork/<name>`, from the
+   trunk. The prefix marks it as fork-only: never rebase a `fork/*` branch onto upstream, and
+   never open an upstream PR from one, because it holds the fork's tooling and patches.
+   Upstream-bound work: a prefix that fits the change and the user's request, such as
+   `feat/<name>`, `fix/<name>` or `docs/<name>`, or the convention of upstream's contributing
+   guide. Never `fork/`, `sync/`, `setup/` or `upgrade/`, which the kit uses. Cut it from the
+   upstream commit that the trunk is based on, as `work.md` shows. Never cut it from the
+   trunk, because the upstream PR then carries every fork patch. Never cut it from upstream's
+   tip: merged into the trunk, it brings in unreleased upstream code. For release and tag
+   sources, the release workflow then stops.
 6. **Keep upstream's CI off the trunk.** GitHub runs the workflow files of the default
    branch, and of every pushed commit, in the fork. The trunk therefore holds only the fork's
    own `fork-*` workflows: merge upstream with the kit's `bin/merge-upstream`, which removes
-   upstream's whole `.github` and keeps only the fork's own files. Never push upstream's default branch to the fork. A `feat/*` branch has to be
+   upstream's whole `.github` and keeps only the fork's own files. Never push upstream's default branch to the fork. An upstream-bound branch has to be
    pushed for its upstream PR, and upstream's workflows then run on it, but they cannot read
    `SYNC_TOKEN`: it lives in the `fork-sync` environment, which only the trunk can use.
 
@@ -50,8 +55,8 @@ it alone. Some setups refuse a chained command that they cannot judge.
 
 Do these before anything else, once per session:
 
-1. Read the configuration from the trunk, never from the working tree. A `feat/*` branch has
-   no `.github/fork.yml`:
+1. Read the configuration from the trunk, never from the working tree. An upstream-bound
+   branch has no `.github/fork.yml`:
 
    ```bash
    git show origin/HEAD:.github/fork.yml

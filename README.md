@@ -145,7 +145,7 @@ The forks call the workflows at `@v1`, a tag that moves.
   branches, and upstream's default branch is never pushed to the fork.
 - `SYNC_TOKEN` lives in each fork's `fork-sync` environment, which only the trunk can use, so
   a workflow on any other branch cannot read it.
-- Upstream's workflows still run on `feat/*` branches pushed for upstream PRs, and a workflow
+- Upstream's workflows still run on the branches pushed for upstream PRs, and a workflow
   can raise its own `GITHUB_TOKEN` to write access. So in each fork, rulesets let only admins
   push to the trunk or create tags, and immutable releases lock each release's assets.
   Releases are published with `SYNC_TOKEN`, whose owner is an admin.

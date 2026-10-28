@@ -4,8 +4,8 @@
 # repository is a fork managed by fork-kit.
 #
 # The trunk is the fork's default branch, so origin/HEAD normally points at it.
-# Reading fork.yml from there, not from the working tree, also catches feat/*
-# branches, which are cut from the mirror and never contain the fork's files.
+# Reading fork.yml from there, not from the working tree, also catches
+# upstream-bound branches, which are cut from upstream and never contain the fork's files.
 # A clone made before the fork's default branch changed keeps a stale
 # origin/HEAD, so every remote branch is checked, origin/HEAD among them.
 #
