@@ -105,35 +105,10 @@ git -C <clone path> push origin --delete <mirror>
 keep a copy of it, because a push of upstream's branch runs upstream's workflows in the fork.
 `feat/*` branches start from `upstream/<mirror>` instead.
 
-### 3. Add the tooling as a setup PR
+### 3. Set up the GitHub side
 
-1. Cut `setup/fork` from the trunk.
-2. Render the templates from `templates/` into the fork. Fill in every `{{...}}` value. For
-   the `tip` source, remove each line that ends in `# tip:remove`. For other sources, remove
-   only the marker comments:
-   - `templates/fork.yml` to `.github/fork.yml`
-   - `templates/fork-sync.yml` to `.github/workflows/fork-sync.yml`
-   - `templates/fork-release.yml` to `.github/workflows/fork-release.yml`
-   - `templates/FORK.md` to `FORK.md`
-
-   Values that need a format:
-   - `{{stamp}}`: one line per file, indented by four spaces, with the filter in single
-     quotes: `    manifest.json: '.version = $version'`.
-   - `{{version_file}}`: `package.json`, also for sources other than `tip`.
-   - `{{commit}}` and `{{assets}}`: a comma-separated list, or nothing for an empty list.
-   - `{{install}}`: a `## Install` heading, then the install text.
-3. Commit `chore: set up fork tooling` with no attribution. Push the branch and open a PR to
-   the trunk in the fork (`--repo <owner>/<name>`), never upstream.
-
-Feature work, such as the user's first patches, waits until the setup PR is merged. Before
-that, `origin/HEAD` has no `fork.yml`. Open patch PRs after the merge, and tell the user to
-merge them only after step 4: a push to the trunk starts a release, and the release fails
-without the token.
-
-### 4. Set up the GitHub side
-
-Do this only after the user merged the setup PR, because step 5 runs the workflows that the
-setup PR adds.
+Do this right after step 2, so that the rulesets protect the trunk before anything else is
+pushed.
 
 ```bash
 gh api -X PUT repos/<owner>/<name>/environments/fork-sync \
@@ -158,22 +133,22 @@ JSON
 gh api -X PUT repos/<owner>/<name>/immutable-releases
 ```
 
-Then the token. The kit's `SYNC_TOKEN` token reaches only the repositories on its list, and
-GitHub has no API to change that list. So stop and tell the user, in these words:
+Then copy the token into the fork:
+
+```bash
+gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
+```
+
+The kit's `SYNC_TOKEN` token reaches only the repositories on its list, and GitHub has no API
+to change that list. If the distribute run fails with a permissions error, the fork is not on
+the list. Then stop and tell the user, in these words:
 
 > Add `<owner>/<name>` to the kit's token: open
 > <https://github.com/settings/personal-access-tokens>, open the token stored as `SYNC_TOKEN`
 > in `<kit-repo>`, choose "Only select repositories", add `<owner>/<name>`, and save. Tell me
 > when it is done.
 
-Wait for the user's answer, then copy the token into the fork:
-
-```bash
-gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
-```
-
-If the distribute run fails with a permissions error, the fork is not on the token's list
-yet. Repeat the instruction above.
+After the user's answer, run the distribute workflow again.
 
 The first two commands create the `fork-sync` environment, which only the trunk can use. The
 token lives there, so no workflow on another branch can read it. The fourth command lets the
@@ -189,9 +164,37 @@ Rulesets on a private repository need a paid GitHub plan. If the fork is private
 account has no such plan, tell the user that this protection is missing. Make sure that the secret arrived:
 `gh secret list -R <owner>/<name> --env fork-sync` lists `SYNC_TOKEN`.
 
+### 4. Add the tooling as a setup PR
+
+1. Cut `setup/fork` from the trunk.
+2. Render the templates from `templates/` into the fork. Fill in every `{{...}}` value. For
+   the `tip` source, remove each line that ends in `# tip:remove`. For other sources, remove
+   only the marker comments:
+   - `templates/fork.yml` to `.github/fork.yml`
+   - `templates/fork-sync.yml` to `.github/workflows/fork-sync.yml`
+   - `templates/fork-release.yml` to `.github/workflows/fork-release.yml`
+   - `templates/FORK.md` to `FORK.md`
+
+   Values that need a format:
+   - `{{stamp}}`: one line per file, indented by four spaces, with the filter in single
+     quotes: `    manifest.json: '.version = $version'`.
+   - `{{version_file}}`: `package.json`, also for sources other than `tip`.
+   - `{{commit}}` and `{{assets}}`: a comma-separated list, or nothing for an empty list.
+   - `{{install}}`: a `## Install` heading, then the install text.
+3. Commit `chore: set up fork tooling` with no attribution. Push the branch and open a PR to
+   the trunk in the fork (`--repo <owner>/<name>`), never upstream.
+
+The trunk ruleset from step 3 blocks every update of the trunk except by admins. To merge
+the setup PR, or any later PR into the trunk, the user ticks "Merge without waiting for
+requirements to be met (bypass rules)" on the PR page.
+
+Feature work, such as the user's first patches, waits until the setup PR is merged. Before
+that, `origin/HEAD` has no `fork.yml`.
+
 ### 5. Finish
 
-Dispatch the first sync and the first release, one after the other, and report both:
+After the user merged the setup PR, dispatch the first sync and the first release, one after
+the other, and report both:
 
 ```bash
 gh workflow run fork-sync.yml -R <owner>/<name>
@@ -211,12 +214,14 @@ names that the fork already uses.
    and the secrets (`gh secret list`).
 2. Ask only what the existing setup does not answer. Run the release detection above. For a
    project without `package.json`, give the Node-only warning above.
-3. Render the templates on a `setup/fork` branch from the trunk. In the same PR, delete the
+3. Do step 3 of the persistent fork, except the distribute run. Upstream's workflows can
+   still be on the trunk, and they must not get a token that the trunk can read.
+4. Render the templates on a `setup/fork` branch from the trunk. In the same PR, delete the
    fork's old sync and release workflows that the callers replace, and remove upstream's whole
    `.github`: every file in it except `.github/fork.yml` and `.github/workflows/fork-*`.
-4. After the user merges the PR, delete the fork's copy of upstream's default branch
-   (`git push origin --delete <mirror>`), then do step 4 of the persistent fork, including
-   the instruction to add the fork to the kit's token. The
-   distribute workflow moves an old repository-level `SYNC_TOKEN` into the environment.
-5. Disable the upstream push URL and run `git remote set-head origin --auto`.
-6. After the user merges the PR, dispatch one sync and one release, and report both.
+5. If the fork keeps a copy of upstream's default branch, ask the user to delete it, as in
+   step 2 of the persistent fork.
+6. Disable the upstream push URL and run `git remote set-head origin --auto`.
+7. After the user merges the PR, run the distribute workflow as step 3 describes. It also
+   moves an old repository-level `SYNC_TOKEN` into the environment. Then dispatch one sync
+   and one release, and report both.
