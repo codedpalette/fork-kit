@@ -18,6 +18,10 @@ on:
 
 jobs:
   verify:
+    # A sync/<ref> PR holds upstream's code without the fork's files, and the
+    # owner resolves it on the trunk, so the check skips it. GitHub counts a
+    # skipped required check as passed.
+    if: ${{ !startsWith(github.head_ref, 'sync/') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

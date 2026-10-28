@@ -3,6 +3,19 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: branch prefixes, token request first (schema 1, unchanged)
+
+- Fork-only branches always start with `fork/`. An upstream-bound branch takes any prefix
+  that fits the change, such as `feat/`, `fix/` or `docs/`, but never `fork/` or `sync/`. It
+  still starts from the upstream commit that the trunk is based on.
+- The PR check skips `sync/*` PRs. GitHub counts a skipped required check as passed.
+- The skill asks the user to add a new fork to the kit's token right after it creates the
+  fork. It runs the distribute workflow, a sync or a release only after the user's answer,
+  and asks the user to merge the setup PR only after the token arrived.
+- `FORK.md` describes the new branch rules.
+
+No change in the forks is needed. To update a fork's `FORK.md`, use the `upgrade` mode.
+
 ## kit v1 update: template renderer (schema 1, unchanged)
 
 `bin/render-templates` renders the fork templates from one JSON file of values. It writes
