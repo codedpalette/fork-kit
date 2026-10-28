@@ -59,8 +59,8 @@ it when it works.
    - Expiration: the longest that the form offers
    - Repository access: Only select repositories, with every fork made with the kit. Not the
      kit itself, and nothing else.
-   - Repository permissions: Contents, Workflows, Pull requests, Secrets and Environments set
-     to read and write. Nothing else.
+   - Repository permissions: Contents, Workflows, Secrets and Environments set to read and
+     write. Nothing else.
 3. Store it in your copy of the kit. Paste the token at the prompt, not on the command line,
    so that it stays out of your shell history:
 
@@ -78,9 +78,8 @@ runs that code too, in Claude Code sessions. If you call someone else's kit anyw
 `kit` to a full commit SHA, and install the plugin without auto-update.
 
 The token needs Workflows write because the fork's own `.github/workflows` files change with
-each kit update, and the built-in `GITHUB_TOKEN` cannot push those. It needs Pull requests write
-for the sync's conflict PRs, and Secrets and Environments write only for the distribution
-workflow.
+each kit update, and the built-in `GITHUB_TOKEN` cannot push those. It needs Secrets and
+Environments write only for the distribution workflow.
 
 Keep the token to the forks only. A leaked token then reaches nothing but the forks: not
 your other repositories, and not the kit, whose `main` and `v1` reach every machine and

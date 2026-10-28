@@ -138,7 +138,7 @@ gh api -X POST repos/<owner>/<name>/environments/fork-sync/deployment-branch-pol
   -f name=<trunk> -f type=branch
 gh api -X PUT repos/<owner>/<name>/actions/permissions -F enabled=true -f allowed_actions=all
 gh api -X PUT repos/<owner>/<name>/actions/permissions/workflow \
-  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=false
+  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
 gh api -X POST repos/<owner>/<name>/rulesets --input - <<'JSON'
 {"name": "trunk: only admins push", "target": "branch", "enforcement": "active",
  "conditions": {"ref_name": {"include": ["refs/heads/<trunk>"], "exclude": []}},
@@ -163,10 +163,10 @@ gh api -X PUT repos/<owner>/<name>/immutable-releases
 ```
 
 The first two commands create the `fork-sync` environment, which only the trunk can use. The
-token lives there, so no workflow on another branch can read it. The fourth command makes
-`GITHUB_TOKEN` read-only by default, and keeps workflows from creating or approving PRs with
-it. The sync workflow opens its conflict PRs with `SYNC_TOKEN`, inside the job that already
-holds it.
+token lives there, so no workflow on another branch can read it. The fourth command lets the
+sync workflow open its conflict PRs with `GITHUB_TOKEN`. GitHub has one setting for both
+creating and approving PRs, "Allow GitHub Actions to create and approve pull requests". No
+kit workflow approves or merges a PR: the user merges.
 
 The first and third rulesets, and immutable releases, stop upstream's workflows that run on a pushed
 upstream-bound branch. Such a workflow can raise its own `GITHUB_TOKEN` to write access, but only

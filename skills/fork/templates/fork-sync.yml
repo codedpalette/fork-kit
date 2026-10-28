@@ -18,6 +18,8 @@ jobs:
     uses: {{kit_repo}}/.github/workflows/sync.yml@v1
     permissions:
       contents: read
+      pull-requests: write
+      issues: write
     # By name, not "inherit": the kit gets only this secret. Its value comes
     # from the fork-sync environment, inside the kit's push job.
     secrets:
