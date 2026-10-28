@@ -15,6 +15,15 @@ An existing fork must update its two callers from the templates:
 1. In `fork-sync.yml`, give the `release` job `with: { ref: ${{ needs.sync.outputs.sha }} }` and
    the `fork-release` concurrency group.
 2. In `fork-release.yml`, add the `fork-release` concurrency group.
+## kit v1 update: upstream tags apart, stamps checked (schema 1, unchanged)
+
+- The workflows fetch upstream's tags into `refs/upstream-tags/`, apart from the fork's own
+  release tags. An upstream tag named like a fork release no longer breaks every fetch.
+- The base is the bare-version upstream tag nearest to the trunk's head, and the higher
+  version on a tie. A high version tagged on an old commit can no longer become the base.
+- The publish job checks that each stamped file still matches its filter after the build.
+
+No change in the forks is needed.
 
 ## kit v1 update: PR check and exempt admins (schema 1, unchanged)
 

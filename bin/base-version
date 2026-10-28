@@ -4,10 +4,12 @@
 #
 #   base-version <source> [<version-file>] [<upstream ref>]
 #
-# For release, tag and npm sources: the nearest tag reachable from HEAD that is
-# a bare version, with upstream's own prefix kept (v3.1.3, 8.6.0). Tags with a
-# `-` are prereleases or fork releases and never count. Upstream's tags must be
-# fetched into the repository first.
+# For release, tag and npm sources: an upstream tag under refs/upstream-tags/
+# that is a bare version (8.6.0, v3.1.3) and is in HEAD's history. The
+# workflows fetch upstream's tags there, apart from the fork's own release tags,
+# so the two can never collide. Of those tags, the nearest one to HEAD wins, and
+# the higher version on a tie. A tag on an old commit can therefore never
+# become the base, however high its version.
 #
 # For the tip source: the .version field of <version-file> (default
 # package.json), because a tip-following upstream has no tags to go by. Without
@@ -26,7 +28,18 @@ source="$1" version_file="${2:-package.json}" upstream_ref="${3:-}"
 
 case "$source" in
     release | tag | npm)
-        git describe --tags --abbrev=0 --match '*[0-9]*' --exclude '*-*' HEAD 2>/dev/null || exit 3
+        best="" best_distance=""
+        while read -r name; do
+            [[ "$name" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+            distance="$(git rev-list --count "refs/upstream-tags/$name..HEAD")"
+            if [ -z "$best" ] || [ "$distance" -lt "$best_distance" ] ||
+                { [ "$distance" -eq "$best_distance" ] &&
+                    [ "$(printf '%s\n%s\n' "${best#v}" "${name#v}" | sort -V | tail -n 1)" = "${name#v}" ]; }; then
+                best="$name" best_distance="$distance"
+            fi
+        done < <(git for-each-ref --merged HEAD --format='%(refname:strip=2)' refs/upstream-tags/)
+        [ -n "$best" ] || exit 3
+        printf '%s\n' "$best"
         ;;
     tip)
         version=""

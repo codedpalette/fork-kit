@@ -115,8 +115,10 @@ jobs:
         run: |
           # Upstream's tags give the base; the fork's own tags give N. A tip
           # fork without a version file is based on upstream's commit date.
-          git fetch -q --tags "https://github.com/$UPSTREAM.git" \
-            "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR"
+          # Upstream's tags go to refs/upstream-tags/, apart from the fork's
+          # own release tags, so the two can never collide.
+          git fetch -q --no-tags "https://github.com/$UPSTREAM.git" \
+            "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR" "+refs/tags/*:refs/upstream-tags/*"
 
           base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE" "upstream/$MIRROR")" || {
             echo "::error::Found no upstream version to base the release on."
@@ -124,7 +126,7 @@ jobs:
           }
           # The release builds the trunk under the base's label, so the trunk
           # must hold no upstream code newer than that release.
-          if [ "$SOURCE" != tip ] && ! ../kit/bin/check-released "$base" "upstream/$MIRROR"; then
+          if [ "$SOURCE" != tip ] && ! ../kit/bin/check-released "refs/upstream-tags/$base" "upstream/$MIRROR"; then
             echo "::error::The trunk holds upstream code that $base does not. Reset it to an upstream release plus the fork's patches."
             exit 1
           fi
@@ -288,7 +290,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch -q --tags "https://github.com/$UPSTREAM.git"
+          git fetch -q --no-tags "https://github.com/$UPSTREAM.git" "+refs/tags/*:refs/upstream-tags/*"
 
           # The archive comes from the build job, which ran upstream's code.
           # Unpack it into an empty directory outside the checkout, and check
@@ -298,6 +300,17 @@ jobs:
           mapfile -t listed < <(jq -nr --argjson s "$STAMP" --argjson a "$ASSETS" --argjson c "$COMMIT" \
             '($s | keys) + $a + $c | unique | .[]')
           ../kit/bin/check-release-files ../out "${listed[@]}"
+
+          # The build can rewrite a stamped file, for example manifest.json
+          # from package.json, and ship upstream's version, name or id. Each
+          # stamped file must still match its filter: stamping it again changes
+          # nothing. A fork that stamps nothing has nothing to check.
+          while IFS=$'\t' read -r file filter; do
+            if ! jq -e --arg version "$VERSION" "($filter) == ." "../out/$file" >/dev/null; then
+              echo "::error::The build changed the stamped fields of $file. Stamp it after the build, or stop the build from writing it."
+              exit 1
+            fi
+          done < <(jq -r 'to_entries[] | [.key, .value] | @tsv' <<<"$STAMP")
 
           # The token reaches git through a credential helper that reads it
           # from the environment, so it is never stored or put on a command line.
@@ -334,7 +347,7 @@ jobs:
               echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$BASE)."
             fi
 
-            exclude=("^$BASE")
+            exclude=("^refs/upstream-tags/$BASE")
             [ "$SOURCE" = tip ] && exclude=("^upstream/$MIRROR")
             if [ -n "$previous" ]; then
               range=("$previous..$SHA")
