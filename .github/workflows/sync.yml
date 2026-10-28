@@ -147,7 +147,10 @@ jobs:
               exit 1
             fi
             [ "$rc" -eq 0 ] || exit "$rc"
-            sha="$(git rev-parse "refs/upstream-tags/$ref^{commit}")"
+            if ! sha="$(git rev-parse -q --verify "refs/upstream-tags/$ref^{commit}")"; then
+              echo "::error::Upstream's release $ref has no tag in $UPSTREAM. Upstream deleted or renamed it."
+              exit 1
+            fi
           fi
 
           echo "ref=$ref" >>"$GITHUB_OUTPUT"

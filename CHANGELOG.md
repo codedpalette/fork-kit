@@ -14,7 +14,8 @@ schema version and what a fork must change.
 - The skill deletes the mirror and `setup/fork` branches itself, and asks the user only when
   its permissions block the deletion.
 
-No change in the forks is needed. A fork with `source: npm` must switch to `tag`.
+No change in the forks is needed, except a fork with `source: npm`, which must switch to
+`tag`.
 
 ## kit v1 update: a sync release builds the merge (schema 1, unchanged)
 
@@ -28,6 +29,7 @@ An existing fork must update its two callers from the templates:
 1. In `fork-sync.yml`, give the `release` job `with: { ref: ${{ needs.sync.outputs.sha }} }` and
    the `fork-release` concurrency group.
 2. In `fork-release.yml`, add the `fork-release` concurrency group.
+
 ## kit v1 update: upstream tags apart, stamps checked (schema 1, unchanged)
 
 - The workflows fetch upstream's tags into `refs/upstream-tags/`, apart from the fork's own

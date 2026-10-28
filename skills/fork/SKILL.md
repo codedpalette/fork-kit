@@ -32,7 +32,7 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    commit that the trunk is based on, as `work.md` shows. Fork-only work: `fork/<name>` from
    the trunk. Never cut `feat/*` from the trunk, because the upstream PR then carries every
    fork patch. Never cut it from upstream's tip: merged into the trunk, it brings in
-   unreleased upstream code, and the release workflow then stops.
+   unreleased upstream code. For release and tag sources, the release workflow then stops.
 6. **Keep upstream's CI off the trunk.** GitHub runs the workflow files of the default
    branch, and of every pushed commit, in the fork. The trunk therefore holds only the fork's
    own `fork-*` workflows: merge upstream with the kit's `bin/merge-upstream`, which removes

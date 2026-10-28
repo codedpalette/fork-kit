@@ -37,10 +37,19 @@ merged into the trunk. Rebuild the trunk from its upstream release plus the fork
 commits. Show the user the result, and force-push it only after the user approves:
 
 ```bash
+git fetch upstream --tags
 git switch -c rebuild "refs/tags/<tag-prefix><base>"           # the base the error names
-git log --reverse --no-merges --format=%H origin/<trunk> ^upstream/<mirror> |
+git rm -r -q --ignore-unmatch .github                           # none of upstream's .github
+git commit -q -m "chore: remove upstream's .github"
+git log --reverse --no-merges --format=%H origin/<trunk> ^upstream/<mirror> -- . ':!.github' |
   xargs git cherry-pick                                        # the fork's own commits
+git checkout origin/<trunk> -- .github/fork.yml '.github/workflows/fork-*'
+git commit -q -m "chore: restore the fork tooling"
+git ls-tree -r --name-only rebuild -- .github                   # only fork.yml and fork-* files
 ```
+
+The last command must list only `.github/fork.yml` and `.github/workflows/fork-*`. Any other
+file would run on the trunk with the fork's secrets. Remove it before the push.
 
 ## sync
 

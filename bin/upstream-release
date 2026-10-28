@@ -37,7 +37,17 @@ found() { [ -n "$1" ] || exit 3; printf '%s\n' "$1"; }
 
 case "$source" in
     release)
-        found "$(gh release view --repo "$upstream" --json tagName -q .tagName 2>/dev/null || true)"
+        if [ -z "$prefix" ]; then
+            found "$(gh release view --repo "$upstream" --json tagName -q .tagName 2>/dev/null || true)"
+        else
+            # A repository with several packages releases each under its own
+            # prefix, so the latest release overall can belong to another one.
+            found "$(gh release list --repo "$upstream" --exclude-drafts --exclude-pre-releases \
+                --limit 100 --json tagName -q '.[].tagName' 2>/dev/null |
+                grep -E "^${prefix_re}v?[0-9]+\.[0-9]+\.[0-9]+$" |
+                sed "s|^${prefix_re}||" | sort -V | tail -n 1 |
+                sed "s|^|${prefix}|" || true)"
+        fi
         ;;
     tag)
         # Only bare versions count: a `-` marks a prerelease or a fork's own tag.

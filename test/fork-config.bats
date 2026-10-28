@@ -95,3 +95,12 @@ value() { grep "^$1=" <<<"$output" | cut -d= -f2-; }
     run "$BIN/fork-config" .github/fork.yml
     [ "$status" -ne 0 ]
 }
+
+@test "refuses a tag prefix that starts with - or holds .." {
+    yq -i '.sync["tag-prefix"] = "-x"' .github/fork.yml
+    run "$BIN/fork-config" .github/fork.yml
+    [ "$status" -ne 0 ]
+    yq -i '.sync["tag-prefix"] = "a..b"' .github/fork.yml
+    run "$BIN/fork-config" .github/fork.yml
+    [ "$status" -ne 0 ]
+}

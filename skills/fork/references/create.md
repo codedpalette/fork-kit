@@ -40,9 +40,12 @@ Detect how upstream marks a release, in this order, and stop at the first hit:
 
 Exit code 3 means that the source has no release. A release tag can carry a prefix before its
 version, such as `release-1.2.3` or `pkg@1.2.3`. Then `tag-prefix` in `fork.yml` is that
-prefix, and the fork's versions leave it out: `1.2.3-patched.1`. If the tag does not end in a
-plain version (`1.2.3` or `v1.2.3`), tell the user that the kit cannot version this upstream,
-and stop. If both commands find nothing, tell the user
+prefix, and the fork's versions leave it out: `1.2.3-patched.1`. Both commands then need the
+prefix as a third argument. If both commands find nothing, list upstream's tags with
+`git ls-remote --tags --refs https://github.com/<upstream>.git`. If the newest release tags
+share a prefix before a plain version (`1.2.3` or `v1.2.3`), run both commands again with
+that prefix. If a release tag does not end in a plain version, tell the user that the kit
+cannot version this upstream, and stop. If nothing is found, tell the user
 that upstream has no clear release cut. Then ask what to do:
 
 - Follow the upstream tip. Sync merges the tip into the trunk. Nothing releases automatically.
@@ -107,7 +110,8 @@ and wait for the answer.
 
 `<mirror>` is upstream's default branch, the `mirror` key of `fork.yml`. The fork does not
 keep a copy of it, because a push of upstream's branch runs upstream's workflows in the fork.
-`feat/*` branches start from `upstream/<mirror>` instead.
+`feat/*` branches start from the upstream commit that the trunk is based on, as `work.md`
+shows.
 
 ### 3. Set up the GitHub side
 
