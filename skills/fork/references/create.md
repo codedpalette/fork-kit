@@ -151,15 +151,15 @@ gh api -X PUT repos/<owner>/<name>/immutable-releases
 Then copy the token into the fork, and wait for the run to finish:
 
 ```bash
-started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+gh run list -R <kit-repo> --workflow distribute-secret.yml -L 1 --json databaseId -q '.[0].databaseId'
 gh workflow run distribute-secret.yml -R <kit-repo> -f repo=<owner>/<name>
-gh run list -R <kit-repo> --workflow distribute-secret.yml -L 5 --json databaseId,createdAt \
-  -q "[.[] | select(.createdAt >= \"$started\")][0].databaseId"
+gh run list -R <kit-repo> --workflow distribute-secret.yml -L 1 --json databaseId -q '.[0].databaseId'
 gh run watch <run id> -R <kit-repo> --exit-status
 ```
 
-The new run takes a few seconds to appear. Until `gh run list` prints a run id, wait and run
-it again. Never watch an older run: it can be an earlier failure.
+The first command prints the newest run before the dispatch. The new run takes a few seconds
+to appear: until the third command prints a different id, wait and run it again. Never watch
+the older run: it can be an earlier failure.
 
 The kit's `SYNC_TOKEN` token reaches only the repositories on its list, and GitHub has no API
 to change that list. If the distribute run fails with a permissions error, the fork is not on
@@ -197,9 +197,10 @@ account has no such plan, tell the user that this protection is missing.
 Last, delete every upstream branch on the fork except the trunk: the copy of upstream's
 `<mirror>`, and any other upstream branch that an existing fork carries. Each holds upstream's
 workflows while Actions is on. This step comes last so that a blocked deletion does not hold
-up the setup. List the branches with their tips:
+up the setup. Fetch upstream's branches, then list the fork's branches with their tips:
 
 ```bash
+git fetch -q upstream
 gh api repos/<owner>/<name>/branches --paginate --jq '.[] | "\(.name) \(.commit.sha)"'
 ```
 
@@ -213,6 +214,8 @@ own command:
 ```bash
 git push origin --delete <branch>
 ```
+
+Report each deleted branch with its commit, so that the user can recreate one.
 
 If your permissions block the command, give the user the commands with `git -C <clone path>`.
 Go on with step 4 while you wait, because step 4 does not depend on the deletion.
