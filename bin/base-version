@@ -2,10 +2,11 @@
 #
 # Print the upstream version a fork release is based on.
 #
-#   base-version <source> [<version-file>] [<upstream ref>]
+#   base-version <source> [<version-file>] [<upstream ref>] [<tag prefix>]
 #
-# For release, tag and npm sources: an upstream tag under refs/upstream-tags/
-# that is a bare version (8.6.0, v3.1.3) and is in HEAD's history. The
+# For release and tag sources: an upstream tag under refs/upstream-tags/ that
+# is <tag prefix> plus a bare version (8.6.0, v3.1.3, release-1.2.3) and is in
+# HEAD's history. It prints the version without the prefix. The
 # workflows fetch upstream's tags there, apart from the fork's own release tags,
 # so the two can never collide. Of those tags, the nearest one to HEAD wins, and
 # the higher version on a tie. A tag on an old commit can therefore never
@@ -21,25 +22,27 @@
 
 set -euo pipefail
 
-usage() { echo "usage: ${0##*/} <release|tag|npm|tip> [<version-file>] [<upstream ref>]" >&2; exit 2; }
+usage() { echo "usage: ${0##*/} <release|tag|tip> [<version-file>] [<upstream ref>] [<tag prefix>]" >&2; exit 2; }
 
 [ $# -ge 1 ] || usage
-source="$1" version_file="${2:-package.json}" upstream_ref="${3:-}"
+source="$1" version_file="${2:-package.json}" upstream_ref="${3:-}" prefix="${4:-}"
 
 case "$source" in
-    release | tag | npm)
-        best="" best_distance=""
+    release | tag)
+        best="" best_version="" best_distance=""
         while read -r name; do
-            [[ "$name" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+            [[ "$name" == "$prefix"* ]] || continue
+            version="${name#"$prefix"}"
+            [[ "$version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
             distance="$(git rev-list --count "refs/upstream-tags/$name..HEAD")"
             if [ -z "$best" ] || [ "$distance" -lt "$best_distance" ] ||
                 { [ "$distance" -eq "$best_distance" ] &&
-                    [ "$(printf '%s\n%s\n' "${best#v}" "${name#v}" | sort -V | tail -n 1)" = "${name#v}" ]; }; then
-                best="$name" best_distance="$distance"
+                    [ "$(printf '%s\n%s\n' "${best_version#v}" "${version#v}" | sort -V | tail -n 1)" = "${version#v}" ]; }; then
+                best="$name" best_version="$version" best_distance="$distance"
             fi
         done < <(git for-each-ref --merged HEAD --format='%(refname:strip=2)' refs/upstream-tags/)
         [ -n "$best" ] || exit 3
-        printf '%s\n' "$best"
+        printf '%s\n' "$best_version"
         ;;
     tip)
         version=""

@@ -34,12 +34,15 @@ The owner is `gh api user -q .login` unless the user names another owner. Do not
 Detect how upstream marks a release, in this order, and stop at the first hit:
 
 ```bash
-"$KIT_DIR/bin/upstream-release" <upstream> release            # GitHub Releases
-"$KIT_DIR/bin/upstream-release" <upstream> tag                # semver tags
-"$KIT_DIR/bin/upstream-release" <upstream> npm <npm-package>  # npm, if package.json names one
+"$KIT_DIR/bin/upstream-release" <upstream> release   # GitHub Releases
+"$KIT_DIR/bin/upstream-release" <upstream> tag       # semver tags such as 1.2.3 or v1.2.3
 ```
 
-Exit code 3 means that the source has no release. If all three find nothing, tell the user
+Exit code 3 means that the source has no release. A release tag can carry a prefix before its
+version, such as `release-1.2.3` or `pkg@1.2.3`. Then `tag-prefix` in `fork.yml` is that
+prefix, and the fork's versions leave it out: `1.2.3-patched.1`. If the tag does not end in a
+plain version (`1.2.3` or `v1.2.3`), tell the user that the kit cannot version this upstream,
+and stop. If both commands find nothing, tell the user
 that upstream has no clear release cut. Then ask what to do:
 
 - Follow the upstream tip. Sync merges the tip into the trunk. Nothing releases automatically.
@@ -80,9 +83,8 @@ gh repo edit --default-branch <trunk>
 git remote set-head origin --auto
 ```
 
-`<start>` is the upstream release that step 1 detected, as a tag: `refs/tags/<release>`. If
-no such tag exists, as for an npm version, use `refs/tags/v<release>`. Only for the `tip`
-source, `<start>` is `upstream/<mirror>`. Never start the trunk from upstream's tip for
+`<start>` is the upstream release tag that step 1 detected: `refs/tags/<release>`. Only for
+the `tip` source, `<start>` is `upstream/<mirror>`. Never start the trunk from upstream's tip for
 another source. A release builds the trunk under the release's version. If the trunk holds
 newer upstream code, the release workflow stops.
 
@@ -93,13 +95,15 @@ The trunk's first commit removes upstream's whole `.github`, the same rule that
 `bin/merge-upstream` applies. A new fork can have Actions turned on, so upstream's workflows
 must never reach a branch that you push.
 
-Then stop and ask the user to delete the fork's copy of upstream's default branch, because
-the agent's permissions block branch deletion. It holds upstream's workflows while Actions
-is on. Give the user this command, and wait for the answer:
+Then delete the fork's copy of upstream's default branch. It holds upstream's workflows while
+Actions is on:
 
 ```bash
-git -C <clone path> push origin --delete <mirror>
+git push origin --delete <mirror>
 ```
+
+If your permissions block the command, give the user the command with `git -C <clone path>`,
+and wait for the answer.
 
 `<mirror>` is upstream's default branch, the `mirror` key of `fork.yml`. The fork does not
 keep a copy of it, because a push of upstream's branch runs upstream's workflows in the fork.
@@ -203,9 +207,9 @@ that, `origin/HEAD` has no `fork.yml`.
 
 ### 5. Finish
 
-After the user merged the setup PR, ask the user to delete the `setup/fork` branch with the
-"Delete branch" button on the merged PR, because the agent's permissions block branch
-deletion. Then dispatch the first sync and the first release, one after
+After the user merged the setup PR, delete the `setup/fork` branch:
+`git push origin --delete setup/fork`. If your permissions block the command, ask the user to
+use the "Delete branch" button on the merged PR. Then dispatch the first sync and the first release, one after
 the other, and report both:
 
 ```bash
@@ -231,8 +235,8 @@ names that the fork already uses.
 4. Render the templates on a `setup/fork` branch from the trunk. In the same PR, delete the
    fork's old sync and release workflows that the callers replace, and remove upstream's whole
    `.github`: every file in it except `.github/fork.yml` and `.github/workflows/fork-*`.
-5. If the fork keeps a copy of upstream's default branch, ask the user to delete it, as in
-   step 2 of the persistent fork.
+5. If the fork keeps a copy of upstream's default branch, delete it, as in step 2 of the
+   persistent fork.
 6. Disable the upstream push URL and run `git remote set-head origin --auto`.
 7. After the user merges the PR, run the distribute workflow as step 3 describes. It also
    moves an old repository-level `SYNC_TOKEN` into the environment. Then dispatch one sync

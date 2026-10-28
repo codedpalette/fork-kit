@@ -109,8 +109,8 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | `mirror` | Upstream's default branch. The fork keeps no copy of it. |
 | `trunk` | The fork's default branch: upstream plus the fork's patches |
 | `node` | Node version for verify and build |
-| `sync.source` | How upstream marks a release: `release`, `tag`, `npm` or `tip`. With `tip`, sync merges the upstream branch and nothing releases automatically. |
-| `sync.npm-package` | Package name, only for `source: npm` |
+| `sync.source` | How upstream marks a release: `release` or `tag`, or `tip`. With `tip`, sync merges the upstream branch and nothing releases automatically. |
+| `sync.tag-prefix` | Text before the version in upstream's release tags, for example `release-` in `release-1.2.3`. The fork's versions leave it out: `1.2.3-patched.1`. Empty for plain tags such as `1.2.3` or `v1.2.3`. |
 | `sync.verify` | Command that must pass before a sync pushes, and on every PR into the trunk. The skill copies it from upstream's CI. |
 | `release.suffix` | Release version is `<upstream base>-<suffix>.<N>` |
 | `release.build` | Command that builds the files to release |

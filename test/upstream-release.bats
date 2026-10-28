@@ -27,7 +27,26 @@ setup() {
     [ "$status" -eq 3 ]
 }
 
-@test "npm source without a package name exits 2" {
+@test "tag source with a prefix: only tags with that prefix count" {
+    git tag release-1.2.0
+    commit b; git tag release-1.10.0
+    commit c; git tag 9.9.9
+    commit d; git tag release-1.11.0-rc.1
+    run "$BIN/upstream-release" "$UPSTREAM" tag release-
+    [ "$status" -eq 0 ]
+    [ "$output" = "release-1.10.0" ]
+}
+
+@test "a prefix with regex characters matches only itself" {
+    git tag pkg@1.0.0
+    commit b; git tag pkgX1.5.0
+    run "$BIN/upstream-release" "$UPSTREAM" tag 'pkg@'
+    [ "$output" = "pkg@1.0.0" ]
+    run "$BIN/upstream-release" "$UPSTREAM" tag 'pkg.'
+    [ "$status" -eq 3 ]
+}
+
+@test "npm is no longer a source" {
     run "$BIN/upstream-release" "$UPSTREAM" npm
     [ "$status" -eq 2 ]
 }

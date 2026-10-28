@@ -2,23 +2,28 @@
 #
 # Print the git ref of upstream's latest release.
 #
-#   upstream-release <upstream> <source> [<npm-package>]
+#   upstream-release <upstream> <source> [<tag prefix>]
 #
 # <upstream> is owner/name on GitHub, or a local path or URL (used by tests).
 # <source> is one of:
 #   release  the latest GitHub Release that is not a prerelease
 #   tag      the highest semver tag; prerelease and fork tags are ignored
-#   npm      the commit npm's `latest` was published from (needs <npm-package>)
 #   tip      prints nothing: a tip-source fork merges the branch, not a release
+#
+# <tag prefix> is the text before the version in upstream's tags, for example
+# release- in release-1.2.3. The tag source then counts only such tags.
 #
 # Exit codes: 0 found (or tip), 2 usage error, 3 upstream has no such release.
 
 set -euo pipefail
 
-usage() { echo "usage: ${0##*/} <upstream> <release|tag|npm|tip> [<npm-package>]" >&2; exit 2; }
+usage() { echo "usage: ${0##*/} <upstream> <release|tag|tip> [<tag prefix>]" >&2; exit 2; }
 
 [ $# -ge 2 ] || usage
-upstream="$1" source="$2" package="${3:-}"
+upstream="$1" source="$2" prefix="${3:-}"
+# The prefix as an extended regular expression that matches only itself.
+# shellcheck disable=SC2016 # the sed pattern lists literal characters
+prefix_re="$(printf '%s' "$prefix" | sed 's/[][\.*^$(){}?+|/]/\\&/g')"
 
 remote_url() {
     if [ -e "$upstream" ] || [[ "$upstream" == *://* ]]; then
@@ -38,12 +43,8 @@ case "$source" in
         # Only bare versions count: a `-` marks a prerelease or a fork's own tag.
         found "$(git ls-remote --tags --refs "$(remote_url)" |
             sed 's|.*refs/tags/||' |
-            grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' |
+            grep -E "^${prefix_re}v?[0-9]+\.[0-9]+\.[0-9]+$" |
             sort -V | tail -n 1 || true)"
-        ;;
-    npm)
-        [ -n "$package" ] || usage
-        found "$(npm view "$package" gitHead 2>/dev/null || true)"
         ;;
     tip)
         ;;

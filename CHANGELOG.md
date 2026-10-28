@@ -3,6 +3,19 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: tag prefixes, no npm source, release-based features (schema 1, unchanged)
+
+- `sync.tag-prefix` names the text before the version in upstream's release tags, for
+  example `release-`. The fork's versions leave it out. Empty by default.
+- The `npm` source is gone, and `sync.npm-package` is no longer read. The `tag` source covers
+  packages that tag their releases in git.
+- `feat/*` branches start from the upstream commit that the trunk is based on, not from
+  upstream's tip, so merging one into the trunk never brings in unreleased upstream code.
+- The skill deletes the mirror and `setup/fork` branches itself, and asks the user only when
+  its permissions block the deletion.
+
+No change in the forks is needed. A fork with `source: npm` must switch to `tag`.
+
 ## kit v1 update: a sync release builds the merge (schema 1, unchanged)
 
 The release job of `fork-sync.yml` built the trunk as it was when the sync run started, before

@@ -128,7 +128,7 @@ jobs:
           UPSTREAM: ${{ steps.config.outputs.upstream }}
           MIRROR: ${{ steps.config.outputs.mirror }}
           SOURCE: ${{ steps.config.outputs.source }}
-          NPM_PACKAGE: ${{ steps.config.outputs.npm-package }}
+          TAG_PREFIX: ${{ steps.config.outputs.tag-prefix }}
         run: |
           git remote add upstream "https://github.com/$UPSTREAM.git"
           # Upstream's tags go to refs/upstream-tags/, apart from the fork's own
@@ -141,17 +141,13 @@ jobs:
             sha="$(git rev-parse "upstream/$MIRROR")"
           else
             rc=0
-            ref="$(../kit/bin/upstream-release "$UPSTREAM" "$SOURCE" "$NPM_PACKAGE")" || rc=$?
+            ref="$(../kit/bin/upstream-release "$UPSTREAM" "$SOURCE" "$TAG_PREFIX")" || rc=$?
             if [ "$rc" -eq 3 ]; then
               echo "::error::$UPSTREAM has no $SOURCE release. To follow its branch instead, set sync.source to tip in .github/fork.yml."
               exit 1
             fi
             [ "$rc" -eq 0 ] || exit "$rc"
-            # A tag name for release and tag sources, a commit for npm.
-            target="refs/upstream-tags/$ref"
-            git rev-parse -q --verify "$target^{commit}" >/dev/null || target="$ref"
-            git rev-parse -q --verify "$target^{commit}" >/dev/null || git fetch -q upstream "$target"
-            sha="$(git rev-parse "$target^{commit}")"
+            sha="$(git rev-parse "refs/upstream-tags/$ref^{commit}")"
           fi
 
           echo "ref=$ref" >>"$GITHUB_OUTPUT"

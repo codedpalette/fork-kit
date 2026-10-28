@@ -111,6 +111,7 @@ jobs:
           MIRROR: ${{ steps.config.outputs.mirror }}
           SUFFIX: ${{ steps.config.outputs.suffix }}
           VERSION_FILE: ${{ steps.config.outputs.version-file }}
+          TAG_PREFIX: ${{ steps.config.outputs.tag-prefix }}
           REQUESTED: ${{ inputs.version }}
         run: |
           # Upstream's tags give the base; the fork's own tags give N. A tip
@@ -120,14 +121,14 @@ jobs:
           git fetch -q --no-tags "https://github.com/$UPSTREAM.git" \
             "+refs/heads/$MIRROR:refs/remotes/upstream/$MIRROR" "+refs/tags/*:refs/upstream-tags/*"
 
-          base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE" "upstream/$MIRROR")" || {
+          base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE" "upstream/$MIRROR" "$TAG_PREFIX")" || {
             echo "::error::Found no upstream version to base the release on."
             exit 1
           }
           # The release builds the trunk under the base's label, so the trunk
           # must hold no upstream code newer than that release.
-          if [ "$SOURCE" != tip ] && ! ../kit/bin/check-released "refs/upstream-tags/$base" "upstream/$MIRROR"; then
-            echo "::error::The trunk holds upstream code that $base does not. Reset it to an upstream release plus the fork's patches."
+          if [ "$SOURCE" != tip ] && ! ../kit/bin/check-released "refs/upstream-tags/$TAG_PREFIX$base" "upstream/$MIRROR"; then
+            echo "::error::The trunk holds upstream code that $base does not. Rebuild it from $base plus the fork's own commits: see the fork skill, work.md, feature."
             exit 1
           fi
           if [ -n "$REQUESTED" ]; then
@@ -286,6 +287,7 @@ jobs:
           COMMIT: ${{ steps.config.outputs.commit }}
           VERSION: ${{ needs.build.outputs.version }}
           BASE: ${{ needs.build.outputs.base }}
+          TAG_PREFIX: ${{ steps.config.outputs.tag-prefix }}
           SHA: ${{ needs.build.outputs.sha }}
         run: |
           git config user.name 'github-actions[bot]'
@@ -339,15 +341,15 @@ jobs:
               echo "Built from upstream \`$MIRROR\` at [\`${tip:0:12}\`](https://github.com/$UPSTREAM/commit/$tip), with this fork's patches."
             elif [ "$previous_base" = "$BASE" ]; then
               echo "Same upstream base as $previous: \`$BASE\`."
-            elif gh release view "$BASE" --repo "$UPSTREAM" >/dev/null 2>&1; then
-              echo "Updates to upstream \`$BASE\`. Upstream's changes: [release notes](https://github.com/$UPSTREAM/releases/tag/$BASE)."
+            elif gh release view "$TAG_PREFIX$BASE" --repo "$UPSTREAM" >/dev/null 2>&1; then
+              echo "Updates to upstream \`$BASE\`. Upstream's changes: [release notes](https://github.com/$UPSTREAM/releases/tag/$TAG_PREFIX$BASE)."
             elif [ -n "$previous_base" ]; then
-              echo "Updates to upstream \`$BASE\`. Upstream's changes: [$previous_base...$BASE](https://github.com/$UPSTREAM/compare/$previous_base...$BASE)."
+              echo "Updates to upstream \`$BASE\`. Upstream's changes: [$previous_base...$BASE](https://github.com/$UPSTREAM/compare/$TAG_PREFIX$previous_base...$TAG_PREFIX$BASE)."
             else
-              echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$BASE)."
+              echo "Built from upstream [\`$BASE\`](https://github.com/$UPSTREAM/tree/$TAG_PREFIX$BASE)."
             fi
 
-            exclude=("^refs/upstream-tags/$BASE")
+            exclude=("^refs/upstream-tags/$TAG_PREFIX$BASE")
             [ "$SOURCE" = tip ] && exclude=("^upstream/$MIRROR")
             if [ -n "$previous" ]; then
               range=("$previous..$SHA")

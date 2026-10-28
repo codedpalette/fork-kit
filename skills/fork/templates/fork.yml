@@ -8,8 +8,8 @@ mirror: {{mirror}}                # upstream's default branch (not kept in the f
 trunk: {{trunk}}                  # our default branch: upstream plus our patches
 node: {{node}}                    # setup-node version for verify and build
 sync:
-  source: {{source}}              # release | tag | npm | tip
-  npm-package: '{{npm_package}}'  # only for source: npm
+  source: {{source}}              # release | tag | tip
+  tag-prefix: '{{tag_prefix}}'    # text before the version in upstream's tags, e.g. release-
   verify: {{verify}}
 release:
   suffix: {{suffix}}              # version = <upstream base>-<suffix>.<N>

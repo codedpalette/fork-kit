@@ -45,6 +45,22 @@ utag() { git update-ref "refs/upstream-tags/$1" "${2:-HEAD}"; }
     [ "$output" = "1.0.0" ]
 }
 
+@test "with a tag prefix: prints the version without the prefix" {
+    commit a; utag release-1.2.0
+    commit b; utag release-1.3.0; utag 9.9.9
+    commit c
+    run "$BIN/base-version" release package.json "" release-
+    [ "$status" -eq 0 ]
+    [ "$output" = "1.3.0" ]
+}
+
+@test "without a tag prefix, prefixed tags never count" {
+    commit a; utag 1.0.0
+    commit b; utag release-1.3.0
+    run "$BIN/base-version" release
+    [ "$output" = "1.0.0" ]
+}
+
 @test "keeps upstream's v prefix" {
     commit a; utag v3.1.3
     commit b; git tag v3.1.3-expofp.5
