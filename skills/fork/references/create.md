@@ -65,7 +65,7 @@ Then ask the open questions, each with its proposed default:
 
 | Question | Default |
 |---|---|
-| Trunk branch name | `patched`, or the organization name for an organization fork |
+| Trunk branch name | `dev`. If upstream has a `dev` branch, `patched`. If upstream has both, no default. List upstream's branches with `git ls-remote --heads https://github.com/<upstream>.git` |
 | Release outputs | `assets` for files that a tool downloads from a GitHub Release, or `commit` for files that a git-URL install reads from the tag. Propose from how the project is consumed. |
 | Fields to stamp | Version fields in the files that ship, as `jq` filters on `$version` |
 | Release suffix | `patched` |

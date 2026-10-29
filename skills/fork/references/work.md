@@ -36,7 +36,30 @@ git switch -c fork/<name> origin/<trunk>
 Either kind reaches the trunk through a PR in the fork, so that the required check runs:
 commit with no attribution, push the branch, and open the PR with
 `gh pr create --repo <owner>/<name> --base <trunk>`. The user merges it. An upstream-bound
-branch also gets its PR upstream, as rule 2 of `SKILL.md` describes.
+branch also gets its PR upstream, as the section "Upstream PR" below describes.
+
+## Upstream PR
+
+An upstream-bound change goes upstream in two steps:
+
+1. Open a PR from the branch in the fork. Write its title and body for upstream's readers,
+   because step 2 copies them: no fork details, no attribution.
+2. Ask the user to approve that PR. Open the upstream PR only after the user says that it
+   is ready. If the user asks for changes, make them in the fork PR, and ask again.
+
+Copy the title and body of the fork PR verbatim, edits by the user included. If the PR
+changed after the user approved it, ask again. Write the body to a file outside the clone,
+then open the upstream PR with its own command. Never type the title into the command
+yourself: the command substitution reads it, and the shell does not run the text it returns.
+
+```bash
+gh pr view <number> -R <owner>/<name> --json body -q .body > <body file>
+gh pr create --repo <upstream> --head <owner>:<branch> --base <mirror> \
+  --title "$(gh pr view <number> -R <owner>/<name> --json title -q .title)" --body-file <body file>
+```
+
+Never link the two PRs. Neither body names the other PR by number, URL or `owner/name#N`,
+and you post no comment that does.
 
 To ship an upstream-bound change before upstream merges it, open a PR from the upstream-bound
 branch into the trunk in the fork, as above, and merge it with a merge commit. When upstream later releases the same change, the next sync removes the
@@ -58,7 +81,7 @@ git commit -q -m "chore: restore the fork tooling"
 "$KIT_DIR/bin/check-own-github" rebuild                       # prints any file that is not the fork's
 ```
 
-The last command must print nothing. Any file it prints would run on the trunk with the
+The last command must print nothing. Any file it prints will run on the trunk with the
 fork's secrets. Remove it before the push.
 
 ## sync
