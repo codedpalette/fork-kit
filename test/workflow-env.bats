@@ -1,8 +1,9 @@
 # Every uppercase $VARIABLE a workflow step's script uses must come from that
-# step's env: or from the runner. Lowercase names are the scripts' own locals.
+# step's env:, from the runner or from bash. Lowercase names are the scripts'
+# own locals.
 # A variable missing from env: expands to nothing, silently.
 
-KNOWN='^(GITHUB_[A-Z_]+|RUNNER_[A-Z_]+|HOME|PATH|PWD|CI)$'
+KNOWN='^(GITHUB_[A-Z_]+|RUNNER_[A-Z_]+|BASH_[A-Z_]+|HOME|PATH|PWD|CI)$'
 
 undefined_vars() {  # <workflow file>
     local file="$1" job step count i

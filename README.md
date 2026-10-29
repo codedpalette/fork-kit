@@ -15,6 +15,8 @@ versioned releases.
 | Detection hook | `hooks/hooks.json`, `scripts/detect-fork.sh` | Tells a fresh agent session to load the skill inside a fork |
 | Reusable workflows | `.github/workflows/sync.yml`, `release.yml` | Sync upstream into the trunk, publish releases |
 | Secret distribution | `.github/workflows/distribute-secret.yml` | Copies `SYNC_TOKEN` from this repository into each fork |
+| Kit releases | `.github/workflows/kit-release.yml`, `bin/kit-version` | Releases each merge into `main` and moves the major tag |
+| Audit skill | `skills/kit-audit/`, `scripts/detect-kit.sh` | Audits plans and diffs in this repository against the security rules |
 | Version scripts | `bin/` | Find upstream's release, the base version and the next fork version |
 
 ## Set up on a machine
@@ -68,7 +70,21 @@ it when it works.
    gh secret set SYNC_TOKEN -R <your login>/fork-kit
    ```
 
-4. Do the steps of "Set up on a machine", with `<your login>/fork-kit` as the marketplace.
+4. Protect the kit's `v*` tags, so that only admins and `kit-release.yml` (the GitHub
+   Actions app, ID 15368) write them. Then tag the first release by hand:
+
+   ```bash
+   gh api -X POST repos/<your login>/fork-kit/rulesets --input - <<'JSON'
+   {"name": "v* tags: only admins and the release workflow", "target": "tag", "enforcement": "active",
+    "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
+    "rules": [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}, {"type": "non_fast_forward"}],
+    "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"},
+                      {"actor_id": 15368, "actor_type": "Integration", "bypass_mode": "always"}]}
+   JSON
+   git tag v1.0.0 && git tag -f v1 && git push origin v1.0.0 && git push -f origin v1
+   ```
+
+5. Do the steps of "Set up on a machine", with `<your login>/fork-kit` as the marketplace.
    The skill finds your copy of the kit through your GitHub login.
 
 Use your own copy rather than calling `codedpalette/fork-kit` from your forks. The owner of a
@@ -103,7 +119,7 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | Key | Meaning |
 |---|---|
 | `schema` | Version of this contract. For a fork that is behind, the skill proposes an upgrade. |
-| `kit` | Version tag of the kit, for example `v1`, or a full commit SHA. Branch names are refused, so a branch cannot stand in for the tag. |
+| `kit` | Version tag of the kit. A major tag such as `v1` follows every `1.x.y` release. A full version such as `v1.4.0`, or a full commit SHA, pins one release. The `uses:` lines of the `fork-*` workflows then need the same ref. Branch names are refused, so a branch cannot stand in for the tag. |
 | `kit-repo` | The kit repository, for example `codedpalette/fork-kit` |
 | `upstream` | `owner/name` of the upstream repository |
 | `mirror` | Upstream's default branch. The fork keeps no copy of it. |
@@ -127,14 +143,21 @@ warns about this before it creates or adopts such a fork.
 
 ## How changes reach the forks
 
-The forks call the workflows at `@v1`, a tag that moves.
+Each PR merged into `main` is a release. `kit-release.yml` picks the version from the commit
+prefixes since the last release and publishes a GitHub Release for it. Then it moves the major
+tag, for example `v1`, to the same commit.
 
-| Change | Where | Reaches the forks |
+| Commits since the last release | Version | Reaches the forks |
 |---|---|---|
-| Fix inside a workflow, same inputs | Commit here, move `v1` | On the next run of every fork |
-| New `fork.yml` key with a default | Commit here, move `v1`, note it in `CHANGELOG.md` | The same. A fork opts in by editing its `fork.yml`. |
-| Breaking change | New `v2` tag, new templates, `CHANGELOG.md` | When the skill's `upgrade` mode runs in that fork |
-| Skill or hook | `skills/fork/`, `scripts/` | Through plugin auto-update, on every machine |
+| A `!` before the colon (`feat!:`), or a `BREAKING CHANGE:` line | `v2.0.0`, new tag `v2` | A PR from each fork's next sync that moves the fork to `v2` |
+| At least one `feat:` | `v1.5.0`, `v1` moves | On the next run of every fork on `v1` |
+| Anything else | `v1.4.1`, `v1` moves | The same |
+| Skill or hook changes | as above | Through plugin auto-update, on every machine |
+
+A breaking change also needs the templates in `skills/fork/templates` to call the new major
+tag, and an entry in `CHANGELOG.md` that says what a fork must change. The release fails
+without the templates. A fork that closes the major PR stays on the old major tag, and the
+sync asks again only for the next one.
 
 ## Security rules for the workflows
 
@@ -175,5 +198,5 @@ shellcheck bin/* scripts/*.sh test/check-isolation
 actionlint
 ```
 
-There are no end-to-end tests. After a change to a workflow, push it to `main`, dispatch a
-sync and a release in one real fork whose callers point at `@main`, and only then move `v1`.
+Start each commit message with a Conventional Commits prefix such as `fix:` or `feat:`: the
+release reads them.

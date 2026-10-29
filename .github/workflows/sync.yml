@@ -428,3 +428,58 @@ jobs:
           gh pr create --base "$TRUNK" --head "$branch" --title "Sync upstream $REF into $TRUNK" \
             --body-file body.md --assignee "$OWNER"
           echo "::warning::Upstream $REF conflicts with $TRUNK. Opened a sync PR."
+
+      # A fork follows one major version of the kit, such as v1. When the kit
+      # has a newer one, this opens one PR that moves the fork to it. A fork
+      # that set kit to a full version or a commit pinned it on purpose, and
+      # a closed PR means the owner declined, so neither gets a PR.
+      - name: Offer the kit's new major version
+        working-directory: fork
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUSH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          TRUNK: ${{ steps.config.outputs.trunk }}
+          KIT_REPO: ${{ steps.kit.outputs.repo }}
+        run: |
+          current="$(yq -r '.kit // "v1"' .github/fork.yml)"
+          [[ "$current" =~ ^v([0-9]+)$ ]] || exit 0
+          have="${BASH_REMATCH[1]}"
+          latest="$(git ls-remote --tags --refs "https://github.com/$KIT_REPO.git" 'refs/tags/v*' |
+            sed -n 's|.*refs/tags/v\([0-9][0-9]*\)$|\1|p' | sort -n | tail -n 1)"
+          [ -n "$latest" ] && [ "$latest" -gt "$have" ] || exit 0
+
+          branch="fork/kit-v$latest"
+          if [ -n "$(gh pr list --head "$branch" --state all --json number -q '.[0].number // empty')" ]; then
+            echo "::notice::$KIT_REPO has v$latest. The PR from $branch is open or was closed."
+            exit 0
+          fi
+
+          # shellcheck disable=SC2016 # git expands $PUSH_TOKEN when it runs the helper
+          push() { git -c credential.helper= -c credential.helper='!f() { echo username=x-access-token; echo "password=$PUSH_TOKEN"; }; f' push "$@"; }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -q "$TRUNK"
+          git switch -q -c "$branch"
+          kit_re="${KIT_REPO//./\\.}"
+          # -i.bak works in GNU and BSD sed alike, so the tests run on a Mac too.
+          sed -i.bak -E "s/^kit: v$have\$/kit: v$latest/" .github/fork.yml
+          sed -i.bak -E "s#^( *uses: $kit_re/\.github/workflows/[a-z-]+\.yml)@v$have( |\$)#\1@v$latest\2#" .github/workflows/fork-*.yml
+          rm .github/fork.yml.bak .github/workflows/fork-*.yml.bak
+          git add .github
+          git commit -q -m "chore(fork): move to fork-kit v$latest"
+          push -q --force origin "HEAD:refs/heads/$branch"
+
+          release="https://github.com/$KIT_REPO/releases/tag/v$latest.0.0"
+          cat >body.md <<BODY
+          The kit [$KIT_REPO](https://github.com/$KIT_REPO) has a new major version, [\`v$latest\`]($release). This fork still calls \`v$have\`, which gets no more updates. This PR moves \`.github/fork.yml\` and the \`fork-*\` workflows to \`v$latest\`.
+
+          A major version can need more than the new version number. Read [the release notes]($release) before you merge. In Claude Code, the fork skill's \`upgrade\` mode makes the other changes on this branch.
+
+          GitHub does not run the fork's check on a PR that a workflow opened, so merge it as an admin. To stay on \`v$have\`, close this PR: the sync then asks again only for the next major version.
+          BODY
+          gh pr create --base "$TRUNK" --head "$branch" --title "Move to fork-kit v$latest" \
+            --body-file body.md --assignee "$OWNER"
+          git switch -q "$TRUNK"
+          echo "::warning::$KIT_REPO has v$latest. Opened a PR that moves this fork to it."
