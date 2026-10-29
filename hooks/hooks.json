@@ -3,8 +3,7 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/detect-fork.sh\"" },
-          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/detect-kit.sh\"" }
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/scripts/detect-fork.sh\"" }
         ]
       }
     ]

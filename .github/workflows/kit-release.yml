@@ -6,16 +6,19 @@ name: Kit release
 # workflows at @vX, so they get the release on their next run. A new major
 # tag reaches a fork as a PR that its own sync opens.
 #
-# The "v* tags" ruleset lets only admins and GitHub Actions write v* tags.
-# main takes only PRs with green CI, so this job runs only reviewed code. It
-# runs no third-party code: only git and gh.
+# The "v* tags" ruleset lets only admins and deploy keys write v* tags. The
+# kit's one deploy key is RELEASE_KEY, in the kit-release environment, which
+# only main can use: a workflow on any other branch cannot read it, and
+# GITHUB_TOKEN cannot write v* tags at all. main takes only PRs with green
+# CI, so this job runs only reviewed code. It runs no third-party code: only
+# git, ssh and gh.
 
 on:
   push:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: kit-release
@@ -24,6 +27,10 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: kit-release
+    permissions:
+      # gh release create, for a tag that the deploy key pushed
+      contents: write
     steps:
       - name: Check out main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -34,6 +41,7 @@ jobs:
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
           SHA: ${{ github.sha }}
         run: |
           version="$(bin/kit-version "$SHA")"
@@ -51,17 +59,26 @@ jobs:
             echo "::error::$version is a new major version, but the templates in skills/fork/templates still call an older one. Change them to $major in a PR."
             exit 1
           fi
+          if [ -z "$RELEASE_KEY" ]; then
+            echo "::error::RELEASE_KEY is not in the kit-release environment. See the README's setup steps."
+            exit 1
+          fi
 
+          # The key goes to a file that only this step reads, and GitHub's
+          # published host key replaces a first-use trust of whatever answers.
+          umask 077
+          printf '%s\n' "$RELEASE_KEY" >"$RUNNER_TEMP/release_key"
+          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' >"$RUNNER_TEMP/known_hosts"
+          trap 'rm -f "$RUNNER_TEMP/release_key"' EXIT
+          export GIT_SSH_COMMAND="ssh -i $RUNNER_TEMP/release_key -o IdentitiesOnly=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts -o StrictHostKeyChecking=yes"
+          remote="git@github.com:$GITHUB_REPOSITORY.git"
+
+          git push -q "$remote" "$SHA:refs/tags/$version"
           notes="Full list of what a fork must change: [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$version/CHANGELOG.md)."
           if [ "$major" != "${last%%.*}" ]; then
             notes="A new major version. Each fork's next sync opens a PR that moves it to \`$major\`. $notes"
           fi
-          gh release create "$version" --target "$SHA" --title "$version" \
+          gh release create "$version" --verify-tag --title "$version" \
             --generate-notes --notes-start-tag "$last" --notes "$notes"
-
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$major" >/dev/null 2>&1; then
-            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" -f sha="$SHA" -F force=true >/dev/null
-          else
-            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$major" -f sha="$SHA" >/dev/null
-          fi
+          git push -q --force "$remote" "$SHA:refs/tags/$major"
           echo "::notice::Released $version and moved $major to it."

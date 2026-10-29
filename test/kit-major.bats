@@ -54,6 +54,7 @@ run_step() {
     grep -q 'release.yml@v2 *# a comment$' <<<"$sync"
     git -C "$ORIGIN" show fork/kit-v2:.github/workflows/fork-other.yml | grep -q 'check.yml@v1$'
     grep -q '^pr create --base trunk --head fork/kit-v2' "$BATS_TEST_TMPDIR/gh.log"
+    [ "$(git -C "$ORIGIN" rev-list --count trunk..fork/kit-v2)" -eq 1 ]
     grep -q 'releases/tag/v2.0.0' body.md
     [ "$(git rev-parse --abbrev-ref HEAD)" = trunk ]
 }

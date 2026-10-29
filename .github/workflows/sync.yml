@@ -486,8 +486,9 @@ jobs:
           gh pr create --base "$TRUNK" --head "$branch" --title "Move to fork-kit v$latest" \
             --body-file body.md --assignee "$OWNER"
           # GitHub runs no check for a PR that GITHUB_TOKEN opened, but it does
-          # for a push with SYNC_TOKEN to the PR's branch.
-          git commit -q --allow-empty -m "chore(fork): run the fork check"
-          push -q origin "HEAD:refs/heads/$branch"
+          # for a push with SYNC_TOKEN to the PR's branch. The same commit with
+          # a later commit date is a new commit, so the branch keeps one commit.
+          GIT_COMMITTER_DATE="$(( $(date +%s) + 1 )) +0000" git commit -q --amend --no-edit
+          push -q --force origin "HEAD:refs/heads/$branch"
           git switch -q "$TRUNK"
           echo "::warning::$KIT_REPO has v$latest. Opened a PR that moves this fork to it."

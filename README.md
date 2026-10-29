@@ -16,7 +16,7 @@ versioned releases.
 | Reusable workflows | `.github/workflows/sync.yml`, `release.yml` | Sync upstream into the trunk, publish releases |
 | Secret distribution | `.github/workflows/distribute-secret.yml` | Copies `SYNC_TOKEN` from this repository into each fork |
 | Kit releases | `.github/workflows/kit-release.yml`, `bin/kit-version` | Releases each merge into `main` and moves the major tag |
-| Audit skill | `skills/kit-audit/`, `scripts/detect-kit.sh` | Audits plans and diffs in this repository against the security rules |
+| Audit skill | `skills/kit-audit/` | Audits plans and diffs for the kit against the security rules |
 | Version scripts | `bin/` | Find upstream's release, the base version and the next fork version |
 
 ## Set up on a machine
@@ -70,16 +70,26 @@ it when it works.
    gh secret set SYNC_TOKEN -R <your login>/fork-kit
    ```
 
-4. Protect the kit's `v*` tags, so that only admins and `kit-release.yml` (the GitHub
-   Actions app, ID 15368) write them. Then tag the first release by hand:
+4. Give `kit-release.yml` a deploy key that only `main` can use, and protect the kit's `v*`
+   tags so that only admins and deploy keys write them. Then tag the first release by hand.
+   Run this in a clone of your copy:
 
    ```bash
-   gh api -X POST repos/<your login>/fork-kit/rulesets --input - <<'JSON'
-   {"name": "v* tags: only admins and the release workflow", "target": "tag", "enforcement": "active",
+   repo=<your login>/fork-kit
+   ssh-keygen -q -t ed25519 -N '' -C kit-release -f /tmp/release_key
+   gh repo deploy-key add /tmp/release_key.pub -R "$repo" --allow-write --title kit-release
+   gh api -X PUT "repos/$repo/environments/kit-release" --input - <<'JSON'
+   {"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
+   JSON
+   gh api -X POST "repos/$repo/environments/kit-release/deployment-branch-policies" -f name=main -f type=branch
+   gh secret set RELEASE_KEY -R "$repo" --env kit-release </tmp/release_key
+   rm /tmp/release_key /tmp/release_key.pub
+   gh api -X POST "repos/$repo/rulesets" --input - <<'JSON'
+   {"name": "v* tags: only admins and the release key", "target": "tag", "enforcement": "active",
     "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
     "rules": [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}, {"type": "non_fast_forward"}],
     "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"},
-                      {"actor_id": 15368, "actor_type": "Integration", "bypass_mode": "always"}]}
+                      {"actor_id": null, "actor_type": "DeployKey", "bypass_mode": "always"}]}
    JSON
    git tag v1.0.0 && git tag -f v1 && git push origin v1.0.0 && git push -f origin v1
    ```
@@ -184,9 +194,9 @@ sync asks again only for the next one.
 - The `actions/checkout` steps in jobs without the token use `persist-credentials: false`.
 - Third-party actions are pinned to full commit SHAs, and Dependabot updates the pins.
 - Only `kit-release.yml` writes the kit's `v*` tags, on each push to `main`, which takes only
-  PRs with green CI. The tag ruleset lets admins and the GitHub Actions app write them. Any
-  workflow in the kit with `contents: write` acts as that app. So the kit has no other
-  workflow with write access, no collaborator who is not an admin and no deploy key.
+  PRs with green CI. The tag ruleset lets admins and deploy keys write them. The one deploy
+  key is `RELEASE_KEY`, in the `kit-release` environment, which only `main` can use. So the
+  kit has no other deploy key and no collaborator who is not an admin.
 - The sync offers a new major version only in a PR that GitHub Actions opened from the fork
   itself. A PR from someone else's fork with the same branch name does not count.
 - `test/check-isolation` tests these rules on every push, and the headers of `sync.yml` and
