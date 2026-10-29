@@ -1,0 +1,71 @@
+name: Kit release
+
+# Releases the kit after each merge into main: bin/kit-version picks the next
+# vX.Y.Z from the commit prefixes, this workflow publishes a GitHub Release
+# for it and moves the major tag vX to the same commit. The forks call the
+# workflows at @vX, so they get the release on their next run. A new major
+# tag reaches a fork as a PR that its own sync opens.
+#
+# Immutable releases keep each published vX.Y.Z tag where it is. The major
+# tags move, so nothing protects them but write access to the kit. main takes
+# only PRs with green CI, so this job runs only reviewed code. It runs no
+# third-party code: only git and gh.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kit-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # The release, its tag and the move of the major tag
+      contents: write
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          version="$(bin/kit-version "$SHA")"
+          if [ -z "$version" ]; then
+            echo "::notice::No commit since the last release."
+            exit 0
+          fi
+          major="${version%%.*}"
+          last="$(git tag -l --merged "$SHA" 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
+
+          # A fork made after this release gets the templates, so they must
+          # call the new major.
+          if ! grep -q "@$major\$" skills/fork/templates/fork-check.yml ||
+             ! grep -qx "kit: $major" skills/fork/templates/fork.yml; then
+            echo "::error::$version is a new major version, but the templates in skills/fork/templates still call an older one. Change them to $major in a PR."
+            exit 1
+          fi
+
+          notes="Full list of what a fork must change: [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$version/CHANGELOG.md)."
+          if [ "$major" != "${last%%.*}" ]; then
+            notes="A new major version. Each fork's next sync opens a PR that moves it to \`$major\`. $notes"
+          fi
+          gh release create "$version" --target "$SHA" --title "$version" \
+            --generate-notes --notes-start-tag "$last" --notes "$notes"
+
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$major" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$major" -f sha="$SHA" -F force=true >/dev/null
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$major" -f sha="$SHA" >/dev/null
+          fi
+          echo "::notice::Released $version and moved $major to it."

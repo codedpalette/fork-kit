@@ -3,6 +3,17 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: automatic releases, major version PRs (schema 1, unchanged)
+
+- Each PR merged into the kit's `main` is a release with a GitHub Release, such as `v1.1.0`,
+  and `v1` moves to it. The commit prefixes pick the version.
+- `kit` in `fork.yml` takes a full version such as `v1.1.0` to pin one release.
+- If the kit has a newer major tag than the fork's `kit`, the sync opens one PR from
+  `fork/kit-v<N>`. The PR moves `fork.yml` and the `fork-*` workflows to the new tag and
+  links to its release notes. A fork with a pinned `kit` gets no PR.
+
+No change in the forks is needed.
+
 ## kit v1 update: branch prefixes, token request first (schema 1, unchanged)
 
 - Fork-only branches always start with `fork/`. An upstream-bound branch takes any prefix
