@@ -7,7 +7,7 @@ schema version and what a fork must change.
 
 - The skill proposes `dev` as the trunk name for a new fork. If upstream has a `dev`
   branch, it proposes `patched`.
-- For an upstream-bound change, the skill opens a PR in the fork first. It opens the
+- For an upstream-bound change in a persistent fork, the skill opens a PR in the fork first. It opens the
   upstream PR only after the user approves the fork PR. The upstream PR copies the title and
   body verbatim, and neither PR links to the other.
 

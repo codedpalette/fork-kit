@@ -58,8 +58,6 @@ gh pr create --repo <upstream> --head <owner>:<branch> --base <mirror> \
   --title "$(gh pr view <number> -R <owner>/<name> --json title -q .title)" --body-file <body file>
 ```
 
-In a one-off fork, `<mirror>` is upstream's default branch.
-
 Never link the two PRs. Neither body names the other PR by number, URL or `owner/name#N`,
 and you post no comment that does.
 
