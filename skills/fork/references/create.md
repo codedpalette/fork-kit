@@ -23,8 +23,8 @@ KIT_DIR="<this skill's base directory>/../.."
 2. Cut a branch from the upstream default branch, with a prefix that fits the change and the
    user's request, such as `fix/<name>` or `feat/<name>`, make the change, and commit it with no
    attribution.
-3. Push the branch to `origin`. Show the user the PR title and body. Open the PR with
-   `gh pr create --repo <upstream>` only after the user approves them.
+3. Push the branch to `origin`. Open the PR in the fork first, as the section "Upstream PR"
+   of `work.md` describes, with the fork's default branch as the base.
 
 Nothing else: no `fork.yml`, no workflows, no secrets.
 
@@ -65,7 +65,7 @@ Then ask the open questions, each with its proposed default:
 
 | Question | Default |
 |---|---|
-| Trunk branch name | `patched`, or the organization name for an organization fork |
+| Trunk branch name | `dev`. If upstream has a `dev` branch, `patched`. If upstream has both, no default. List upstream's branches with `git ls-remote --heads https://github.com/<upstream>.git` |
 | Release outputs | `assets` for files that a tool downloads from a GitHub Release, or `commit` for files that a git-URL install reads from the tag. Propose from how the project is consumed. |
 | Fields to stamp | Version fields in the files that ship, as `jq` filters on `$version` |
 | Release suffix | `patched` |

@@ -22,8 +22,8 @@ These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in on
    Commits by other people, such as ones you cherry-pick or merge, keep their messages as they
    are.
 2. **Never push to upstream.** The `upstream` remote's push URL is `DISABLED`. PRs to upstream
-   go through `gh pr create --repo <upstream>`, and only after the user approved the title and
-   body you showed them.
+   go through `gh pr create --repo <upstream>`. Open one only after the user approved the same
+   change in a PR in the fork. The section "Upstream PR" of `references/work.md` shows how.
 3. **Never resolve a sync conflict yourself.** No `-X ours`, `-X theirs`, `-s ours`, and no
    `git checkout --ours/--theirs`. Stop and hand the conflicted files to the user.
 4. **Never commit a version, name or id change to the trunk.** The release workflow stamps

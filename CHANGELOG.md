@@ -3,6 +3,16 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: `dev` trunk, fork PR before the upstream PR (schema 1, unchanged)
+
+- The skill proposes `dev` as the trunk name for a new fork. If upstream has a `dev`
+  branch, it proposes `patched`.
+- For an upstream-bound change, the skill opens a PR in the fork first. It opens the
+  upstream PR only after the user approves the fork PR. The upstream PR copies the title and
+  body verbatim, and neither PR links to the other.
+
+No change in the forks is needed.
+
 ## kit v1 update: automatic releases, major version PRs (schema 1, unchanged)
 
 - Each PR merged into the kit's `main` is a release with a GitHub Release, such as `v1.1.0`,
