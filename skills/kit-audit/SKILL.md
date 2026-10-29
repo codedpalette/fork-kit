@@ -33,7 +33,7 @@ The README's "Security rules for the workflows" and the headers of `sync.yml` an
 | Permissions | Each job gets the least it needs. Call out any new write permission, environment or ruleset bypass. |
 | Actions | Third-party actions are pinned to a full commit SHA. |
 | Kit ref | The kit is checked out by tag or commit only, never by a branch name. |
-| Kit tags | Only `kit-release.yml`, on `main`, writes `v*` tags, with `RELEASE_KEY` from the `kit-release` environment. No other job uses that environment, and no other deploy key exists. |
+| Kit tags | Only `kit-release.yml`, on `main`, writes `v*` tags. No other kit workflow gets `contents: write`, and the kit has no deploy key and no collaborator but the owner. |
 | Skill and hooks | They run on every machine: no download and run, no command built from repository content, no secret in output. |
 | Docs | A changed rule changes the README section and the workflow header in the same PR. |
 

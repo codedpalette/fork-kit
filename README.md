@@ -70,28 +70,20 @@ it when it works.
    gh secret set SYNC_TOKEN -R <your login>/fork-kit
    ```
 
-4. Give `kit-release.yml` a deploy key that only `main` can use, and protect the kit's `v*`
-   tags so that only admins and deploy keys write them. Then tag the first release by hand.
-   Run this in a clone of your copy:
+4. Turn on immutable releases, so that no one can move or delete a published `vX.Y.Z`
+   tag. Block branches named `v*`, because GitHub can pick such a branch instead of a major tag. Then tag the
+   first release by hand. Run this in a clone of your copy:
 
    ```bash
    repo=<your login>/fork-kit
-   ssh-keygen -q -t ed25519 -N '' -C kit-release -f /tmp/release_key
-   gh repo deploy-key add /tmp/release_key.pub -R "$repo" --allow-write --title kit-release
-   gh api -X PUT "repos/$repo/environments/kit-release" --input - <<'JSON'
-   {"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
-   JSON
-   gh api -X POST "repos/$repo/environments/kit-release/deployment-branch-policies" -f name=main -f type=branch
-   gh secret set RELEASE_KEY -R "$repo" --env kit-release </tmp/release_key
-   rm /tmp/release_key /tmp/release_key.pub
+   gh api -X PUT "repos/$repo/immutable-releases"
    gh api -X POST "repos/$repo/rulesets" --input - <<'JSON'
-   {"name": "v* tags: only admins and the release key", "target": "tag", "enforcement": "active",
-    "conditions": {"ref_name": {"include": ["refs/tags/v*"], "exclude": []}},
-    "rules": [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}, {"type": "non_fast_forward"}],
-    "bypass_actors": [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"},
-                      {"actor_id": null, "actor_type": "DeployKey", "bypass_mode": "always"}]}
+   {"name": "no v* branches: they could shadow the v* tags", "target": "branch", "enforcement": "active",
+    "conditions": {"ref_name": {"include": ["refs/heads/v*"], "exclude": []}},
+    "rules": [{"type": "creation"}]}
    JSON
    git tag v1.0.0 && git tag -f v1 && git push origin v1.0.0 && git push -f origin v1
+   gh release create v1.0.0 -R "$repo" --title v1.0.0 --notes "First release."
    ```
 
 5. Do the steps of "Set up on a machine", with `<your login>/fork-kit` as the marketplace.
@@ -194,9 +186,9 @@ sync asks again only for the next one.
 - The `actions/checkout` steps in jobs without the token use `persist-credentials: false`.
 - Third-party actions are pinned to full commit SHAs, and Dependabot updates the pins.
 - Only `kit-release.yml` writes the kit's `v*` tags, on each push to `main`, which takes only
-  PRs with green CI. The tag ruleset lets admins and deploy keys write them. The one deploy
-  key is `RELEASE_KEY`, in the `kit-release` environment, which only `main` can use. So the
-  kit has no other deploy key and no collaborator who is not an admin.
+  PRs with green CI. Immutable releases keep each published `vX.Y.Z` tag fixed. The major
+  tags move, so the owner is the only one with write access to the kit. The kit has no
+  other collaborator, no deploy key and no other workflow with `contents: write`.
 - The sync offers a new major version only in a PR that GitHub Actions opened from the fork
   itself. A PR from someone else's fork with the same branch name does not count.
 - `test/check-isolation` tests these rules on every push, and the headers of `sync.yml` and
