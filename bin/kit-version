@@ -27,7 +27,7 @@ if [ -z "$last" ]; then
     exit 1
 fi
 
-log="$(git log --no-merges --format='%s%n%b%x00' "$last..$ref")"
+log="$(git log --no-merges --format='%s%n%b' "$last..$ref")"
 [ -n "$log" ] || exit 0
 
 IFS=. read -r major minor patch <<<"${last#v}"

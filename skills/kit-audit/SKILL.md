@@ -1,6 +1,6 @@
 ---
 name: kit-audit
-description: Use when working in the fork-kit repository itself (the kit, not a fork made with it), before you plan a change to its workflows, scripts, skills or hooks, and again before you open a PR or ask the user to merge one.
+description: Use when the user asks to change the fork-kit kit itself (codedpalette/fork-kit or their copy of it, not a fork made with it), from any repository or session, such as its reusable workflows, bin scripts, fork skill, templates or hooks. Use before you plan the change and again before you open a PR or ask the user to merge one.
 ---
 
 # Kit security audit
