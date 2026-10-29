@@ -31,7 +31,8 @@ name: Sync upstream
 #          no npm, yarn, node or other interpreter, no eval or sh -c, no
 #          action except actions/checkout, and never the fork's verify or
 #          build command, not even indirectly. It repeats the merge and pushes
-#          only the tree that the merge job verified.
+#          only the tree that the merge job verified. Its one other push is
+#          fork/kit-v<N>, the trunk plus a change of the kit's version.
 #   other  Any new job gets no SYNC_TOKEN.
 #
 # test/check-isolation checks these in CI (test/isolation.bats). If
@@ -451,7 +452,10 @@ jobs:
           [ -n "$latest" ] && [ "$latest" -gt "$have" ] || exit 0
 
           branch="fork/kit-v$latest"
-          if [ -n "$(gh pr list --head "$branch" --state all --json number -q '.[0].number // empty')" ]; then
+          # Only this workflow's own PRs count: anyone can open a PR from a
+          # branch with the same name in their own fork.
+          if [ -n "$(gh pr list --head "$branch" --state all --json number,isCrossRepository,author \
+              -q '[.[] | select((.isCrossRepository | not) and .author.is_bot)] | .[0].number // empty')" ]; then
             echo "::notice::$KIT_REPO has v$latest. The PR from $branch is open or was closed."
             exit 0
           fi
@@ -477,9 +481,13 @@ jobs:
 
           A major version can need more than the new version number. Read [the release notes]($release) before you merge. In Claude Code, the fork skill's \`upgrade\` mode makes the other changes on this branch.
 
-          GitHub does not run the fork's check on a PR that a workflow opened, so merge it as an admin. To stay on \`v$have\`, close this PR: the sync then asks again only for the next major version.
+          Merge it after the fork's check passes. To stay on \`v$have\`, close this PR: the sync then asks again only for the next major version.
           BODY
           gh pr create --base "$TRUNK" --head "$branch" --title "Move to fork-kit v$latest" \
             --body-file body.md --assignee "$OWNER"
+          # GitHub runs no check for a PR that GITHUB_TOKEN opened, but it does
+          # for a push with SYNC_TOKEN to the PR's branch.
+          git commit -q --allow-empty -m "chore(fork): run the fork check"
+          push -q origin "HEAD:refs/heads/$branch"
           git switch -q "$TRUNK"
           echo "::warning::$KIT_REPO has v$latest. Opened a PR that moves this fork to it."

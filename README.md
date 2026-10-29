@@ -183,6 +183,12 @@ sync asks again only for the next one.
   upstream dependency therefore has no token to steal.
 - The `actions/checkout` steps in jobs without the token use `persist-credentials: false`.
 - Third-party actions are pinned to full commit SHAs, and Dependabot updates the pins.
+- Only `kit-release.yml` writes the kit's `v*` tags, on each push to `main`, which takes only
+  PRs with green CI. The tag ruleset lets admins and the GitHub Actions app write them. Any
+  workflow in the kit with `contents: write` acts as that app. So the kit has no other
+  workflow with write access, no collaborator who is not an admin and no deploy key.
+- The sync offers a new major version only in a PR that GitHub Actions opened from the fork
+  itself. A PR from someone else's fork with the same branch name does not count.
 - `test/check-isolation` tests these rules on every push, and the headers of `sync.yml` and
   `release.yml` explain them to anyone who edits them.
 - The release's `build` job runs upstream's build with read access only and hands the files
