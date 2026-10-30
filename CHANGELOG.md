@@ -3,6 +3,15 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: upstream's PR template (schema 1, unchanged)
+
+- The skill writes the body of each upstream-bound PR from upstream's PR template. It reads
+  the template from `upstream/<mirror>`, because the trunk holds none of upstream's
+  `.github`. The fork PR uses the template too, so that the user sees the upstream body
+  before the upstream PR opens. A fork-only PR does not use it.
+
+No change in the forks is needed.
+
 ## kit v1 update: `dev` trunk, fork PR before the upstream PR (schema 1, unchanged)
 
 - The skill proposes `dev` as the trunk name for a new fork. If upstream has a `dev`
