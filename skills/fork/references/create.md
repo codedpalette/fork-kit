@@ -24,7 +24,8 @@ KIT_DIR="<this skill's base directory>/../.."
    user's request, such as `fix/<name>` or `feat/<name>`, make the change, and commit it with no
    attribution.
 3. Push the branch to `origin`. Write the body from upstream's PR template, as the section
-   "PR template" of `references/work.md` describes. Show the user the PR title and body. Open
+   "PR template" of `references/work.md` describes. The body has no attribution: no session
+   link and no "Generated with Claude Code" footer. Show the user the PR title and body. Open
    the PR with `gh pr create --repo <upstream>` only after the user approves them.
 
 Nothing else: no `fork.yml`, no workflows, no secrets.
