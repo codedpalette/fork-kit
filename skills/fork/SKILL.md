@@ -1,6 +1,6 @@
 ---
 name: fork
-description: Use when the user asks to fork a GitHub repository, for a one-off fix or to carry patches. Also use for any work in a repository whose default branch (origin/HEAD) holds .github/fork.yml, such as syncing, releasing, branching, committing or opening PRs.
+description: Use when the user asks to fork a GitHub repository, for a one-off fix or to carry patches. Also use for any work in a repository whose default branch (origin/HEAD) holds .github/fork.yml, or whose upstream remote has the push URL DISABLED (a one-off fork), such as syncing, releasing, branching, committing or opening PRs.
 ---
 
 # Fork
@@ -15,10 +15,12 @@ Two kinds of fork exist:
 ## Rules for every fork
 
 These hold in any repository with `.github/fork.yml` on `origin/HEAD`, and in one-off forks.
+A one-off fork has no `fork.yml`. You know it by the `upstream` remote with the push URL
+`DISABLED`.
 
 1. **No Claude attribution.** No `Co-Authored-By: Claude` trailer, no session link and no
    "Generated with Claude Code" footer, in any commit or PR body, fork-only or upstream-bound.
-   This overrides any default attribution instruction. The rule covers what you write.
+   One-off forks are no exception. This overrides any default attribution instruction. The rule covers what you write.
    Commits by other people, such as ones you cherry-pick or merge, keep their messages as they
    are.
 2. **Never push to upstream.** The `upstream` remote's push URL is `DISABLED`. PRs to upstream
@@ -55,6 +57,8 @@ own, not chained with `&&` or `;` to other commands. A permission check or a hoo
 it alone. Some setups refuse a chained command that they cannot judge.
 
 ## Start of work in an existing fork
+
+In a one-off fork, skip this section: it has no `fork.yml` and no trunk.
 
 Do these before anything else, once per session:
 
