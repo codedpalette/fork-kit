@@ -194,8 +194,8 @@ jobs:
 
       # Upstream's CI, which verify copies, seldom runs the release build. A
       # separate step, so the run shows which of the two failed. A build that
-      # fails here stops the push, so the trunk never holds a merge that the
-      # release cannot build.
+      # fails here stops the push, as a failed verify does. It builds the
+      # files unstamped: a build that reads a stamped field can still differ.
       - name: Build the merge
         if: steps.merge.outputs.result == 'merged'
         working-directory: fork

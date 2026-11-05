@@ -181,7 +181,7 @@ sync asks again only for the next one.
   check guards against mistakes, not against a hostile PR author: a PR that edits
   `fork-check.yml` or `kit-repo` can pass its own check. Your merge stays the real gate.
 - `SYNC_TOKEN` is present only in jobs that run `git` and `gh`. The sync's `merge` job runs
-  upstream's install and tests without it, and a separate `push` job holds it. A compromised
+  upstream's install, tests and build without it, and a separate `push` job holds it. A compromised
   upstream dependency therefore has no token to steal.
 - The `actions/checkout` steps in jobs without the token use `persist-credentials: false`.
 - Third-party actions are pinned to full commit SHAs, and Dependabot updates the pins.
