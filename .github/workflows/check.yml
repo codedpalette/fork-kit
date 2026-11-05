@@ -1,8 +1,8 @@
 name: Check
 
-# Reusable workflow: runs the fork's verify command on a pull request into the
-# trunk. Forks call it from fork-check.yml. The trunk's check ruleset requires
-# its job, "check / verify", to pass before a PR merges.
+# Reusable workflow: runs the fork's verify and build commands on a pull request
+# into the trunk. Forks call it from fork-check.yml. The trunk's check ruleset
+# requires its job, "check / verify", to pass before a PR merges.
 #
 # ---------------------------------------------------------------------------
 # SECURITY: READ THIS BEFORE YOU EDIT THIS FILE
@@ -88,3 +88,10 @@ jobs:
         env:
           VERIFY: ${{ steps.config.outputs.verify }}
         run: bash -euo pipefail -c "$VERIFY"
+
+      # A step, not a job: the trunk's ruleset requires the job "check / verify".
+      - name: Build
+        working-directory: fork
+        env:
+          BUILD: ${{ steps.config.outputs.build }}
+        run: bash -euo pipefail -c "$BUILD"

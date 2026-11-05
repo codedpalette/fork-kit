@@ -9,8 +9,9 @@ name: Sync upstream
 # SYNC_TOKEN can write code and workflows in the fork. Upstream's code runs
 # in two places, and neither may reach the token:
 #
-# 1. In this workflow: the fork's verify command installs upstream's
-#    dependencies and runs its tests, on a schedule, with nobody watching.
+# 1. In this workflow: the fork's verify and build commands install
+#    upstream's dependencies, run its tests and build it, on a schedule,
+#    with nobody watching.
 # 2. As upstream's own GitHub workflows. GitHub runs the workflow files of a
 #    pushed commit, and of the default branch, with the repository's secrets.
 #    So no commit pushed here may contain upstream's .github/workflows or
@@ -190,6 +191,17 @@ jobs:
         env:
           VERIFY: ${{ steps.config.outputs.verify }}
         run: bash -euo pipefail -c "$VERIFY"
+
+      # Upstream's CI, which verify copies, seldom runs the release build. A
+      # separate step, so the run shows which of the two failed. A build that
+      # fails here stops the push, so the trunk never holds a merge that the
+      # release cannot build.
+      - name: Build the merge
+        if: steps.merge.outputs.result == 'merged'
+        working-directory: fork
+        env:
+          BUILD: ${{ steps.config.outputs.build }}
+        run: bash -euo pipefail -c "$BUILD"
 
   push:
     needs: merge
