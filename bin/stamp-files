@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# Write a release version into the files that fork.yml's release.stamp lists.
+# Each entry maps a file to a jq filter, in which $version holds the version.
+# The release runs it before its build, and the sync before its own build, so
+# both builds see the same files.
+#
+#   stamp-files <version> <stamp map as JSON>
+#
+#   stamp-files 8.6.0-patched.1 '{"package.json": ".version = $version"}'
+
+set -euo pipefail
+
+[ $# -eq 2 ] || { echo "usage: ${0##*/} <version> <stamp map as JSON>" >&2; exit 2; }
+version="$1" stamp="$2"
+
+jq -r 'to_entries[] | [.key, .value] | @tsv' <<<"$stamp" |
+    while IFS=$'\t' read -r file filter; do
+        jq --arg version "$version" "$filter" "$file" >"$file.stamped"
+        cat "$file.stamped" >"$file" && rm "$file.stamped"
+        echo "Stamped $file"
+    done

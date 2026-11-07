@@ -131,9 +131,9 @@ Each persistent fork holds `.github/fork.yml` on its trunk. Schema 1:
 | `sync.tag-prefix` | Text before the version in upstream's release tags, for example `release-` in `release-1.2.3`. The fork's versions leave it out: `1.2.3-patched.1`. Empty for plain tags such as `1.2.3` or `v1.2.3`. |
 | `sync.verify` | Command that must pass before a sync pushes, and on every PR into the trunk. The skill copies it from upstream's CI. |
 | `release.suffix` | Release version is `<upstream base>-<suffix>.<N>` |
-| `release.build` | Command that builds the files to release |
+| `release.build` | Command that builds the files to release. It also runs, as its own step, after verify in each sync and on every PR into the trunk, so a failed build stops the sync push. |
 | `release.version-file` | File whose `.version` is the base, only for `source: tip`. Without that file or field, the base is the UTC date of the newest upstream commit in the trunk, as `YYYY.M.D` (for example `2026.1.5-patched.1`). |
-| `release.stamp` | Map of file to `jq` filter, applied at build time and never committed. `$version` holds the release version. |
+| `release.stamp` | Map of file to `jq` filter, applied at build time and never committed. `$version` holds the release version. The sync applies it too, before its build, with the version that the release will publish. The PR check applies it with `0.0.0-<suffix>.1`. |
 | `release.assets` | Files attached to the GitHub Release, for tools that download release assets |
 | `release.commit` | Paths force-added into a commit that is pushed only as the release tag, for git-URL installs |
 
@@ -175,13 +175,13 @@ sync asks again only for the next one.
   push to the trunk or create tags, and immutable releases lock each release's assets.
   Releases are published with `SYNC_TOKEN`, whose owner is an admin.
 - A second ruleset lets a PR into the trunk merge only after `fork-check.yml` ran the verify
-  command. Its job holds no secrets and only read access. The same check fails a PR that
+  and build commands. Its job holds no secrets and only read access. The same check fails a PR that
   would leave any `.github` file on the trunk other than `fork.yml` and `fork-*` workflows,
   for example a branch cut from upstream's newer code. Direct pushes by admins skip it. The
   check guards against mistakes, not against a hostile PR author: a PR that edits
   `fork-check.yml` or `kit-repo` can pass its own check. Your merge stays the real gate.
 - `SYNC_TOKEN` is present only in jobs that run `git` and `gh`. The sync's `merge` job runs
-  upstream's install and tests without it, and a separate `push` job holds it. A compromised
+  upstream's install, tests and build without it, and a separate `push` job holds it. A compromised
   upstream dependency therefore has no token to steal.
 - The `actions/checkout` steps in jobs without the token use `persist-credentials: false`.
 - Third-party actions are pinned to full commit SHAs, and Dependabot updates the pins.

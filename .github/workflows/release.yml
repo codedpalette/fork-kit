@@ -172,13 +172,7 @@ jobs:
         env:
           STAMP: ${{ steps.config.outputs.stamp }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          jq -r 'to_entries[] | [.key, .value] | @tsv' <<<"$STAMP" |
-            while IFS=$'\t' read -r file filter; do
-              jq --arg version "$VERSION" "$filter" "$file" >"$file.stamped"
-              cat "$file.stamped" >"$file" && rm "$file.stamped"
-              echo "Stamped $file"
-            done
+        run: ../kit/bin/stamp-files "$VERSION" "$STAMP"
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

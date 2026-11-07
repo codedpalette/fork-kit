@@ -3,6 +3,17 @@
 The skill's `upgrade` mode reads this file. Each entry names the kit version, the `fork.yml`
 schema version and what a fork must change.
 
+## kit v1 update: the sync and the PR check build (schema 1, unchanged)
+
+- The sync writes `release.stamp` with the version that the release will publish, then runs
+  `release.build` after verify, as a separate step. If the build fails, the
+  sync does not push, and the run fails like a failed verify. Before, the merge reached the
+  trunk, the release failed, and the next sync did not try the release again.
+- `check.yml` writes `release.stamp` with `0.0.0-<suffix>.1`, then runs `release.build` after
+  verify, as a step of the same job.
+
+No change in the forks is needed.
+
 ## kit v1 update: upstream's PR template (schema 1, unchanged)
 
 - The skill writes the body of each upstream-bound PR from upstream's PR template. It reads
