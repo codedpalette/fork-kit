@@ -195,6 +195,7 @@ jobs:
           TAG_PREFIX: ${{ steps.config.outputs.tag-prefix }}
           STAMP: ${{ steps.config.outputs.stamp }}
         run: |
+          [ "$STAMP" != '{}' ] || exit 0
           base="$(../kit/bin/base-version "$SOURCE" "$VERSION_FILE" "upstream/$MIRROR" "$TAG_PREFIX")" || {
             echo "::error::Found no upstream version to base the release on."
             exit 1

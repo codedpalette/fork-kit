@@ -9,7 +9,8 @@ schema version and what a fork must change.
   `release.build` after verify, as a separate step. If the build fails, the
   sync does not push, and the run fails like a failed verify. Before, the merge reached the
   trunk, the release failed, and the next sync did not try the release again.
-- `check.yml` runs `release.build` after verify, as a step of the same job.
+- `check.yml` writes `release.stamp` with `0.0.0-<suffix>.1`, then runs `release.build` after
+  verify, as a step of the same job.
 
 No change in the forks is needed.
 

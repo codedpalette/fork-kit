@@ -78,6 +78,16 @@ jobs:
             exit 1
           fi
 
+      # The release stamps its version before it builds, and a build can read
+      # it. This job has no tags to work out the real version, so it stamps
+      # one of the same shape, 0.0.0-<suffix>.1.
+      - name: Stamp the files
+        working-directory: fork
+        env:
+          SUFFIX: ${{ steps.config.outputs.suffix }}
+          STAMP: ${{ steps.config.outputs.stamp }}
+        run: ../kit/bin/stamp-files "0.0.0-$SUFFIX.1" "$STAMP"
+
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
